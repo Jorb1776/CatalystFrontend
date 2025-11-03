@@ -1,48 +1,38 @@
 {
-<<<<<<< HEAD
   "name": "catalyst-gui",
   "version": "0.1.0",
   "private": true,
-  "proxy": "https://localhost:7280",
   "dependencies": {
     "@microsoft/signalr": "^9.0.6",
-=======
-  "name": "client",
-  "version": "0.1.0",
-  "private": true,
-  "dependencies": {
->>>>>>> e7f68cda913aaefa28a5a9aa2e491313bff972f0
+    "@svar-ui/react-gantt": "^2.3.3",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
-<<<<<<< HEAD
+    "ajv": "8.17.1",
+    "ajv-keywords": "5.1.0",
     "axios": "^1.13.1",
     "moment": "^2.30.1",
-    "react": "^19.2.0",
+    "react": "^18.3.1",
     "react-big-calendar": "^1.19.4",
-    "react-dom": "^19.2.0",
+    "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.9.4",
-    "react-scripts": "5.0.1",
+    "react-scripts": "^5.0.1",
     "swagger-ui-react": "^5.30.0",
-=======
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-scripts": "5.0.1",
->>>>>>> e7f68cda913aaefa28a5a9aa2e491313bff972f0
     "web-vitals": "^2.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "@types/swagger-ui-react": "^5.18.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "http-proxy-middleware": "^3.0.5",
+    "typescript": "^4.9.5",
+    "vite": "^7.1.12"
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "build": "react-scripts build"
   },
   "browserslist": {
     "production": [
@@ -56,8 +46,4 @@
       "last 1 safari version"
     ]
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> e7f68cda913aaefa28a5a9aa2e491313bff972f0

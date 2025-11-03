@@ -1,0 +1,119 @@
+/* src/styles/gantt.css */
+
+/* CONTAINER */
+.gantt-container {
+  background: #111;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0,255,0,0.1);
+  font-family: 'Courier New', monospace;
+}
+
+/* GRID BACKGROUND */
+.gantt-container .gantt_grid_data,
+.gantt-container .gantt_grid_scale {
+  background: #1a1a1a !important;
+  color: #0f0 !important;
+}
+
+/* HEADERS */
+.gantt-container .gantt_grid_header,
+.gantt-container .gantt_scale_cell {
+  color: #0f0 !important;
+  font-weight: bold !important;
+  border-bottom: 1px solid #333 !important;
+  border-right: 1px solid #333 !important;
+  text-align: center !important;
+}
+
+/* TASK ROWS */
+.gantt-container .gantt_task,
+.gantt-container .gantt_task_row {
+  height: 48px !important;
+  min-height: 48px !important;
+  border-bottom: 1px solid #333 !important; /* Visible row lines */
+}
+
+/* GRID LINES (VERTICAL) */
+.gantt-container .gantt_grid_line {
+  border-right: 1px solid #444 !important; /* Visible vertical grid */
+}
+
+/* TIMELINE BACKGROUND + LINES */
+.gantt-container .gantt_task_bg {
+  background: #1a1a1a !important;
+}
+
+.gantt-container .gantt_line {
+  border-right: 1px solid #444 !important; /* Timeline vertical lines */
+}
+
+/* TASK BARS */
+.gantt-container .gantt_task_line {
+  background: linear-gradient(135deg, #0f0 0%, #0c0 100%) !important;
+  border: 2px solid #0f0 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 0 12px rgba(0, 255, 0, 0.5) !important;
+  height: 36px !important;
+  top: 6px !important;
+  z-index: 10 !important;
+}
+
+.gantt-container .gantt_task_progress {
+  background: #111 !important;
+  border-radius: 4px !important;
+  height: 100% !important;
+  box-shadow: 0 0 10px #0f0 !important;
+  opacity: 0.9 !important;
+  z-index: 2 !important;
+  transition: width 0.3s ease !important;
+}
+
+.gantt-container .gantt_task_content {
+  color: #111 !important;
+  font-weight: bold !important;
+  font-size: 0.9rem !important;
+  text-shadow: 0 0 4px #0f0 !important;
+  padding-left: 8px !important;
+  line-height: 36px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* TODAY LINE */
+.gantt-container .gantt_today {
+  border-left: 3px dashed #f90 !important;
+  background: linear-gradient(90deg, transparent, rgba(255,153,0,0.15), transparent) !important;
+  z-index: 5 !important;
+}
+
+/* WEEKENDS */
+.gantt-container .gantt_weekend {
+  background: #1a1a1a !important;
+  opacity: 0.7 !important;
+}
+
+/* ZOOM SLIDER */
+.gantt-container .gantt_zoom_slider {
+  background: #333 !important;
+  border: 1px solid #0f0 !important;
+  border-radius: 6px !important;
+  height: 8px !important;
+  margin: 16px 20px !important;
+}
+
+.gantt-container .gantt_slider_bar {
+  background: #0f0 !important;
+  border-radius: 4px !important;
+  height: 100% !important;
+}
+
+/* FORCE VISIBILITY */
+.gantt-container .gantt_task,
+.gantt-container .gantt_task_line,
+.gantt-container .gantt_task_content {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}

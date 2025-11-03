@@ -1,8 +1,20 @@
-// src/components/UserForm.js
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+// src/components/UserForm.tsx
+import React, { useState, useEffect } from 'react';
+import axios from '../axios';
 
-export default function UserForm({ user, onSuccess, onCancel }) {
+interface User {
+  id?: number;
+  username: string;
+  role: string;
+}
+
+interface UserFormProps {
+  user?: User;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+export default function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
   const [form, setForm] = useState({ username: '', password: '', role: 'User' });
 
   useEffect(() => {
@@ -11,16 +23,16 @@ export default function UserForm({ user, onSuccess, onCancel }) {
     }
   }, [user]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { username: form.username, role: form.role };
+    const payload: any = { username: form.username, role: form.role };
     if (form.password) payload.password = form.password;
 
     const request = user
       ? axios.put(`https://localhost:7280/api/users/${user.id}`, payload)
       : axios.post('https://localhost:7280/api/users', payload);
 
-    request.then(() => onSuccess()).catch(err => console.error(err));
+    request.then(() => onSuccess()).catch((err: any) => console.error(err));
   };
 
   return (

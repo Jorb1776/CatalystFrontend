@@ -1,0 +1,20 @@
+// src/components/FloorGod.tsx
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Text } from '@react-three/drei';
+
+export default function FloorGod() {
+  return (
+    <Canvas camera={{ position: [0, 5, 10] }}>
+      <ambientLight intensity={0.8} />
+      <directionalLight position={[10, 10, 5]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]}>
+        <planeGeometry args={[20, 20]} />
+        <meshStandardMaterial color="#1a1a1a" emissive="#00ff88" emissiveIntensity={0.5} />
+      </mesh>
+      <Text position={[0, 2, 0]} fontSize={1.5} color="#00ff88">
+        FLOOR IS GOD
+      </Text>
+      <OrbitControls />
+    </Canvas>
+  );
+}
