@@ -3,6 +3,12 @@ import React, { useState, useEffect } from 'react';
 import axios from '../axios';
 import ScheduleCalendar from './ScheduleCalendar';
 
+interface MetricsResponse {
+  production: number;
+  inventory: string;
+  defects: string;
+}
+
 interface Metrics {
   production: number;
   inventory: number;
@@ -13,28 +19,35 @@ export default function Reporting() {
   const [metrics, setMetrics] = useState<Metrics>({ production: 0, inventory: 0, defects: 0 });
   const [loading, setLoading] = useState(true);
 
-const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    const fetchMetrics = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-    axios.get('/api/reports/metrics', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then((res: any) => {
+      try {
+        const res = await axios.get<MetricsResponse>('/api/reports/metrics', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
         setMetrics({
           production: res.data.production,
           inventory: parseFloat(res.data.inventory),
           defects: parseFloat(res.data.defects)
         });
-      })
-      .catch((err: any) => console.error(err))  // ← typed
-      .finally(() => setLoading(false));
+      } catch (err: any) {
+        console.error('Metrics fetch failed:', err);
+      } finally {
+        setLoading(false);  // Works with async/await
+      }
+    };
+
+    fetchMetrics();
   }, []);
 
   if (loading) return <p>Loading reports...</p>;
-if (error) return <p style={{ color: '#f00' }}>Error: {error}</p>;
 
   return (
     <div style={{ marginTop: 20, padding: 20 }}>

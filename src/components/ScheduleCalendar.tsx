@@ -1,76 +1,73 @@
 // src/components/ScheduleCalendar.tsx
-import React, { useState, useEffect } from 'react';
-import { Calendar, momentLocalizer, Event } from 'react-big-calendar';
+import React, { useEffect, useState } from 'react';
+import { Calendar, momentLocalizer, Event as CalEvent } from 'react-big-calendar';
 import moment from 'moment';
-import axios from '../axios';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { getConnection } from '../signalr';  // ← Import shared
+import axios from '../axios';
 
 const localizer = momentLocalizer(moment);
 
-export default function ScheduleCalendar() {
-  const [events, setEvents] = useState<Event[]>([]);
+interface ApiSchedule {
+  scheduleID: number;
+  workOrder?: {
+    poNumber?: string;
+    partNumber?: string;
+    quantity?: number;
+  };
+  startDate: string;
+  endDate: string;
+}
 
-  const loadSchedules = async () => {
+interface CalendarEvent extends CalEvent {
+  title: string;
+  start: Date;
+  end: Date;
+}
+
+export default function ScheduleCalendar() {
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
     const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      const res = await axios.get('/api/productionschedules', {
+      const res = await axios.get<ApiSchedule[]>('/api/schedule', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = res.data;
-      const calEvents: Event[] = data.map((s: any) => ({
+
+      const calEvents: CalendarEvent[] = res.data.map(s => ({
         title: `${s.workOrder?.poNumber || '—'} (${s.workOrder?.partNumber || ''} × ${s.workOrder?.quantity || '?'})`,
         start: new Date(s.startDate),
         end: new Date(s.endDate),
-        allDay: true,
-        resource: s,
-        color: s.color || '#3174ad'
       }));
+
       setEvents(calEvents);
     } catch (err) {
-      console.error('Calendar load failed:', err);
+      console.error('Schedule fetch failed:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadSchedules();
-
-    const connection = getConnection();
-    if (!connection) return;
-
-    const handler = () => {
-      console.log('FloorUpdate → reload calendar');
-      loadSchedules();
-    };
-
-    connection.on('FloorUpdate', handler);
-
-    return () => {
-      connection.off('FloorUpdate', handler);
-    };
+    fetchData();
   }, []);
 
-  const eventStyleGetter = (event: Event & { color?: string }) => ({
-    style: {
-      backgroundColor: event.color || '#3174ad',
-      borderRadius: '4px',
-      opacity: 0.9,
-      color: 'white',
-      border: '0px'
-    }
-  });
+  if (loading) return <p style={{ color: '#0f0' }}>Loading schedule...</p>;
 
   return (
-    <div style={{ height: 500, margin: '20px 0' }}>
-      <Calendar
+    <div style={{ height: 500, margin: '20px 0', background: '#111', padding: 10, borderRadius: 8 }}>
+       <Calendar
         localizer={localizer}
         events={events}
         startAccessor="start"
         endAccessor="end"
         style={{ height: 500 }}
-        eventPropGetter={eventStyleGetter}
       />
     </div>
   );

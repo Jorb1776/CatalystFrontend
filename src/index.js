@@ -4,6 +4,19 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
+const API_URL = process.env.REACT_APP_API_URL;
+// KEEP BACKEND ALIVE — GoDaddy won't let us disable idle
+
+setInterval(() => {
+  fetch(`${API_URL}/api/ping`)
+    .then(r => console.log('Keep-alive:', r.status))
+    .catch(() => {});
+}, 4 * 60 * 1000);
+
+fetch(`${API_URL}/api/ping`)
+  .then(r => r.json())
+  .then(data => console.log(data));
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
