@@ -45,51 +45,60 @@ export default function BomList({ boms, loading, onEdit, onDelete }: BomListProp
   const [items, setItems] = useState<Record<number, any>>({});
   const [itemLoading, setItemLoading] = useState<Record<number, boolean>>({});
 
+  const loadItems = async (bomid: number) => {
+    setItemLoading(prev => ({ ...prev, [bomid]: true }));
+    try {
+      const res = await axios.get(`/api/BOMs/${bomid}/items`);
+      setItems(prev => ({ ...prev, [bomid]: res.data }));
+    } catch {
+      toast.error('Failed to load BOM items');
+    } finally {
+      setItemLoading(prev => ({ ...prev, [bomid]: false }));
+    }
+  };
+
   const toggleItems = (bomid: number) => {
     if (expanded === bomid) {
       setExpanded(null);
     } else {
       setExpanded(bomid);
       if (!items[bomid]) {
-        setItemLoading(prev => ({ ...prev, [bomid]: true }));
-        axios.get(`/api/BOMs/${bomid}/items`)
-          .then((res: any) => setItems(prev => ({ ...prev, [bomid]: res.data })))
-          .finally(() => setItemLoading(prev => ({ ...prev, [bomid]: false })))
-          .catch(() => toast.error('Failed to load BOM items'));
+        loadItems(bomid);
       }
     }
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (!window.confirm('Delete BOM?')) return;
-    axios.delete(`/api/BOMs/${id}`)
-      .then(() => {
-        toast.success('BOM deleted');
-        onDelete(id);
-      })
-      .catch(() => toast.error('Delete failed'));
+    try {
+      await axios.delete(`/api/BOMs/${id}`);
+      toast.success('BOM deleted');
+      onDelete(id);
+    } catch {
+      toast.error('Delete failed');
+    }
   };
 
-  if (loading) return <p>Loading BOMs...</p>;
+  if (loading) return <p style={{ color: '#0f0' }}>Loading BOMs...</p>;
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ color: '#0f0' }}>BOMs</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ color: '#0f0' }}>BOM List</h2>
         <CreateBomButton />
       </div>
 
       {boms.length === 0 ? (
-        <p>No BOMs found. Click "New BOM" to create one.</p>
+        <p>No BOMs. Click <strong>+ New BOM</strong> to create one.</p>
       ) : (
         <table style={tableStyle}>
           <thead>
-            <tr style={thStyle}>
-              <th>BOM ID</th>
-              <th>Product</th>
-              <th>Version</th>
-              <th>Items</th>
-              <th>Actions</th>
+            <tr>
+              <th style={thStyle}>BOM ID</th>
+              <th style={thStyle}>Product</th>
+              <th style={thStyle}>Version</th>
+              <th style={thStyle}>Items</th>
+              <th style={thStyle}>Actions</th>
             </tr>
           </thead>
           <tbody>

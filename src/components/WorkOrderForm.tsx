@@ -1,175 +1,196 @@
-// src/components/WorkOrderForm.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from '../axios';
-import { useParams, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
-interface Product { productID: number; name: string }
+interface Product { 
+  productID: number; 
+  partNumber: string; 
+  partName: string; 
+  mold?: { name: string }; 
+  batchSize?: number; 
+  material?: { name: string }; 
+}
 
-const WorkOrderForm: React.FC = () => {
-  const { id } = useParams<{ id?: string }>();
+// Define DTO
+interface WorkOrderRequest {
+  poNumber: string;
+  partNumber: string;
+  moldNumber: string;
+  batchQuantity: number;
+  material: string;
+  orderNote: string;
+}
+
+interface WorkOrderFormProps {
+  workOrderId?: number;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+export default function WorkOrderForm({ workOrderId, onSuccess, onCancel }: WorkOrderFormProps) {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
-  const [form, setForm] = useState({
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isCustom, setIsCustom] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const [form, setForm] = useState<WorkOrderRequest>({
     poNumber: '',
     partNumber: '',
-    priority: 3,
-    customerName: '',
-    customerEmail: '',
-    customerPhone: '',
-    quantity: 1,
-    workNote: '',
-    dueDate: ''
+    moldNumber: '',
+    batchQuantity: 0,
+    material: '',
+    orderNote: ''
   });
+  
 
   useEffect(() => {
-    axios.get('/api/products')
-      .then((res: any) => setProducts(res.data));
+    axios.get<Product[]>('/api/products')
+      .then(r => setProducts(r.data))
+      .catch(() => toast.error('Load failed'));
+  }, []);
 
-    if (id) {
-      axios.get(`/api/workorder/${id}`)
-        .then((res: any) => {
-          const wo = res.data;
-          setForm({
-            poNumber: wo.poNumber || '',
-            partNumber: wo.partNumber || '',
-            priority: wo.priority || 3,
-            customerName: wo.customerName || '',
-            customerEmail: wo.customerEmail || '',
-            customerPhone: wo.customerPhone || '',
-            quantity: wo.quantity || 1,
-            workNote: wo.workNote || '',
-            dueDate: wo.dueDate ? wo.dueDate.split('T')[0] : ''
-          });
+  // Filter products based on search
+  const filteredProducts = useMemo(() => {
+    if (!searchTerm) return products;
+    const term = searchTerm.toLowerCase();
+    return products.filter(p =>
+      p.partNumber.toLowerCase().includes(term) ||
+      p.partName.toLowerCase().includes(term)
+    );
+  }, [products, searchTerm]);
+
+useEffect(() => {
+  if (workOrderId) {
+    axios.get<WorkOrderRequest>(`/api/workorder/${workOrderId}`)
+      .then(r => {
+        const data = r.data;
+        setForm({
+          poNumber: data.poNumber || '',
+          partNumber: data.partNumber || '',
+          moldNumber: data.moldNumber || '',
+          batchQuantity: data.batchQuantity || 0,
+          material: data.material || '',
+          orderNote: data.orderNote || ''
         });
-    }
-  }, [id]);
+        setIsCustom(true); 
+      })
+      .catch(() => toast.error('Failed to load work order'));
+  }
+}, [workOrderId]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (id) {
-        await axios.put(`/api/workorder/${id}`, form);
-      } else {
-        await axios.post('/api/workorder', form);
+      const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+          if (workOrderId) {
+            await axios.put(`/api/workorder/${workOrderId}`, form);
+            toast.success('Work Order Updated');
+          } else {
+            await axios.post('/api/workorder', form);
+            toast.success('Work Order Created');
+          }
+          onSuccess();
+        } catch (err: any) {
+          console.error('Save Error:', err);
+          toast.error(`Save failed: ${err.response?.data || err.message}`);
+        }
+      };
+
+  useEffect(() => {
+      if (selectedProduct && !isCustom) {
+        setForm(prev => ({
+          ...prev,
+          partNumber: selectedProduct.partNumber,
+          moldNumber: selectedProduct.mold?.name || '',
+          batchQuantity: selectedProduct.batchSize || 0,
+          material: selectedProduct.material?.name || ''
+        }));
       }
-      navigate('/floor');
-    } catch (err: any) {
-      alert(`Save failed: ${err.response?.data?.title || 'Bad Request'}`);
-    }
-  };
+    }, [selectedProduct, isCustom]);
 
   return (
-    <form onSubmit={handleSubmit} style={{ maxWidth: 500, margin: 'auto', padding: 20, background: '#111', borderRadius: 8 }}>
-      <h2 style={{ color: '#0f0', textAlign: 'center' }}>{id ? 'Edit' : 'New'} Work Order</h2>
+    <form onSubmit={handleSubmit} style={formStyle}>
+      <h2 style={{ color: '#0f0', marginBottom: 20 }}>{workOrderId ? 'Update Work Order' : 'Create Work Order'}</h2>
 
-      <input
-        placeholder="PO Number"
-        value={form.poNumber}
-        onChange={e => setForm({ ...form, poNumber: e.target.value })}
-        style={inputStyle}
-        required
-      />
+      <div style={field}>
+        <label>PO Number *</label>
+        <input required value={form.poNumber} onChange={e => setForm({...form, poNumber: e.target.value})} style={inputStyle} />
+      </div>
 
-      <select
-        value={form.partNumber}
-        onChange={e => setForm({ ...form, partNumber: e.target.value })}
-        style={inputStyle}
-        required
-      >
-        <option value="">Select Part</option>
-        {products.map(p => (
-          <option key={p.productID} value={p.name}>{p.name}</option>
-        ))}
-      </select>
-
-      <input
-        type="number"
-        placeholder="Quantity"
-        value={form.quantity}
-        onChange={e => setForm({ ...form, quantity: +e.target.value })}
-        style={inputStyle}
-        min="1"
-        required
-      />
-
-      <input
-        placeholder="Customer Name"
-        value={form.customerName}
-        onChange={e => setForm({ ...form, customerName: e.target.value })}
-        style={inputStyle}
-        required
-      />
-
-      <input
-        placeholder="Customer Email"
-        value={form.customerEmail}
-        onChange={e => setForm({ ...form, customerEmail: e.target.value })}
-        style={inputStyle}
-      />
-
-      <input
-        placeholder="Customer Phone"
-        value={form.customerPhone}
-        onChange={e => setForm({ ...form, customerPhone: e.target.value })}
-        style={inputStyle}
-      />
-
-      <input
-        type="date"
-        value={form.dueDate}
-        onChange={e => setForm({ ...form, dueDate: e.target.value })}
-        style={inputStyle}
-      />
-
-      <textarea
-        placeholder="Work Note"
-        value={form.workNote}
-        onChange={e => setForm({ ...form, workNote: e.target.value })}
-        style={{ ...inputStyle, height: 80, resize: 'vertical' }}
-      />
-
-      <div style={{ margin: '12px 0' }}>
-        <label style={{ color: '#aaa', fontSize: '0.9em' }}>Priority: </label>
-        <select
-          value={form.priority}
-          onChange={e => setForm({ ...form, priority: +e.target.value })}
+      <div style={field}>
+        <label>Use Existing Product</label>
+        <input
+          type="text"
+          placeholder="Search part number or name..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
           style={inputStyle}
+        />
+        <select
+          value={selectedProduct?.productID || ''}
+          onChange={e => {
+            const p = products.find(x => x.productID === +e.target.value);
+            setSelectedProduct(p || null);
+            setSearchTerm('');
+            setIsCustom(false);
+          }}
+          style={{ ...selectStyle, marginTop: 8 }}
+          size={5}
         >
-          <option value={1}>High (1)</option>
-          <option value={3}>Medium (3)</option>
-          <option value={5}>Low (5)</option>
+          {filteredProducts.map(p => (
+            <option key={p.productID} value={p.productID}>
+              {p.partNumber} - {p.partName}
+            </option>
+          ))}
         </select>
       </div>
 
-      <button type="submit" style={btnStyle}>
-        Save Work Order
-      </button>
+      <div style={field}>
+        <label>
+          <input type="checkbox" checked={isCustom} onChange={e => setIsCustom(e.target.checked)} /> Custom Entry
+        </label>
+      </div>
+
+      <div style={grid}>
+        <div style={field}>
+          <label>Part Number *</label>
+          <input required value={form.partNumber} onChange={e => setForm({...form, partNumber: e.target.value})} disabled={!isCustom && !!selectedProduct} style={inputStyle} />
+        </div>
+        <div style={field}>
+          <label>Mold Number</label>
+          <input value={form.moldNumber} onChange={e => setForm({...form, moldNumber: e.target.value})} disabled={!isCustom && !!selectedProduct} style={inputStyle} />
+        </div>
+        <div style={field}>
+          <label>Batch Quantity *</label>
+          <input type="number" required value={form.batchQuantity} onChange={e => setForm({...form, batchQuantity: +e.target.value})} disabled={!isCustom && !!selectedProduct} style={inputStyle} />
+        </div>
+        <div style={field}>
+          <label>Material</label>
+          <input value={form.material} onChange={e => setForm({...form, material: e.target.value})} disabled={!isCustom && !!selectedProduct} style={inputStyle} />
+        </div>
+        <div style={{...field, gridColumn: '1 / -1'}}>
+          <label>Order Note</label>
+          <textarea value={form.orderNote} onChange={e => setForm({...form, orderNote: e.target.value})} style={{...inputStyle, height: 80}} />
+        </div>
+      </div>
+
+      <div style={buttonRow}>
+        <button type="submit" style={btnStyle}>
+          {workOrderId ? 'Update Work Order' : 'Create Work Order'}
+        </button>
+        <button type="button" onClick={() => navigate(-1)} style={cancelBtn}>Cancel</button>
+      </div>
     </form>
   );
-};
+}
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px',
-  margin: '8px 0',
-  background: '#222',
-  border: '1px solid #0f0',
-  borderRadius: 4,
-  color: '#fff',
-  fontSize: '1em'
-};
-
-const btnStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '12px',
-  background: '#0f0',
-  color: '#000',
-  border: 'none',
-  borderRadius: 4,
-  fontWeight: 'bold',
-  fontSize: '1.1em',
-  cursor: 'pointer',
-  marginTop: 16
-};
-
-export default WorkOrderForm;
+// Styles
+const formStyle: React.CSSProperties = { maxWidth: 700, margin: '20px auto', padding: 24, background: '#111', borderRadius: 12, border: '1px solid #333', color: '#fff' };
+const field: React.CSSProperties = { marginBottom: 16 };
+const inputStyle: React.CSSProperties = { width: '100%', padding: '10px', background: '#222', border: '1px solid #444', borderRadius: 6, color: '#fff' };
+const selectStyle: React.CSSProperties = { ...inputStyle, padding: '10px', height: 'auto' };
+const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 };
+const buttonRow: React.CSSProperties = { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 };
+const btnStyle: React.CSSProperties = { padding: '12px 24px', background: '#0f0', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' };
+const cancelBtn: React.CSSProperties = { ...btnStyle, background: '#444', color: '#fff' };

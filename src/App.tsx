@@ -19,12 +19,26 @@ import WorkOrderForm from './components/WorkOrderForm';
 import Reporting from './components/Reporting';
 import ApiDocs from './components/ApiDocs';
 import GanttChart from './components/GanttChart';
+import InventoryDashboard from './components/InventoryDashboard';
 import toast, { Toaster } from 'react-hot-toast';
-import { Product } from './types/Product';
+import { Product, Mold } from './types/Product';
+import ProductNew from './pages/ProductNew';
+import ProductDetails from './pages/ProductDetails';
+import ProductEdit from './pages/ProductEdit';
+import WorkOrderEdit from './pages/WorkOrderEdit';
 import { startSignalR, stopSignalR, getConnection } from './signalr';
+import { Bom } from './types/Bom';
+import { User } from './types/User';
+import MoldList from './pages/MoldList';
+import MoldForm from './pages/MoldForm';
+import MaterialList from './pages/MaterialList';
+import MaterialForm from './pages/MaterialForm';
+import ColorantList from './pages/ColorantList';
+import ColorantForm from './pages/ColorantForm';
+import AdditiveList from './pages/AdditiveList';
+import AdditiveForm from './pages/AdditiveForm';
 
-interface Bom { bomid: number; product?: { name: string }; version?: string; }
-interface User { id: number; username: string; role: string; }
+
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
@@ -33,17 +47,28 @@ function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [boms, setBoms] = useState<Bom[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  
+  
 
-  axios.defaults.baseURL = 'http://localhost:5140';
+  // axios.defaults.baseURL = 'https://leevalleymolding.com';
 
   // Refresh functions
-  const refreshProducts = () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    axios.get('/api/products', { headers: { Authorization: `Bearer ${token}` } })
-      .then((res: any) => setProducts(res.data))
-      .catch(console.error);
-  };
+  const refresh = () => {
+  // Optional: refetch data or trigger SignalR
+  console.log('Work order saved, refreshing floor...');
+  // You can trigger a floor refresh via SignalR if needed
+};
+
+const refreshProducts = async () => {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  try {
+    const res = await axios.get<Product[]>('/api/products');
+    setProducts(res.data);
+  } catch (err) {
+    console.error('Refresh failed:', err);
+  }
+};
 
   const refreshBoms = () => {
     const token = localStorage.getItem('token');
@@ -94,6 +119,7 @@ function App() {
     setSignalRReady(false);
     stopSignalR();
   };
+  
 
   return (
     <Router>
@@ -140,6 +166,7 @@ function AppContent({
   handleLogout: () => void;
 }) {
   const navigate = useNavigate();
+  const [showAdminMenu, setShowAdminMenu] = useState(false);
 
   return (
     <div style={{ background: '#111', color: '#0f0', minHeight: '100vh' }}>
@@ -148,63 +175,138 @@ function AppContent({
           <nav style={{ padding: '16px', background: '#222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <Link to="/products" style={navLink}>Products</Link>
-              <Link to="/boms" style={navLink}>BOMs</Link>
-              <Link to="/schedules" style={navLink}>Schedules</Link>
+              {/* <Link to="/schedules" style={navLink}>Schedules</Link>
+              <Link to="/boms" style={navLink}>BOMs</Link> */}
+              
               <Link to="/floor" style={navLink}>Floor</Link>
-              <Link to="/reports" style={navLink}>Reports</Link>
-              <Link to="/gantt" style={navLink}>Gantt</Link>
+              {/* <Link to="/reports" style={navLink}>Reports</Link> */}
+              <Link to="/molds" style={navLink}>Molds</Link>
+              {/* <Link to="/gantt" style={navLink}>Gantt</Link> */}
               {userRole === 'Admin' && (
-                <>
-                  <Link to="/users" style={navLink}>Users</Link>
-                  <Link to="/api" style={navLink}>API</Link>
-                </>
+                <div style={{ position: 'relative' }}>
+                  
+                  <button
+                    onClick={() => setShowAdminMenu(!showAdminMenu)}
+                    style={{
+                      ...navLink,
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '0 12px',
+                      fontWeight: 500
+                    }}
+                  >
+                    Admin ▼
+                  </button>
+                  {showAdminMenu && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        background: '#222',
+                        border: '1px solid #0f0',
+                        borderRadius: 6,
+                        minWidth: 160,
+                        zIndex: 1000,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                      }}
+                      onMouseLeave={() => setShowAdminMenu(false)}
+                    >
+                      {[
+                        { to: '/inventory', label: 'Inventory' },
+                        { to: '/users', label: 'Users' },
+                        // { to: '/api', label: 'API Docs' },
+                        // { to: '/materials', label: 'Materials' },
+                        // { to: '/colorants', label: 'Colorants' },
+                        // { to: '/additives', label: 'Additives' },
+                        
+                      ].map(item => (
+                        <Link
+                          key={item.to}
+                          to={item.to}
+                          style={{
+                            display: 'block',
+                            padding: '10px 16px',
+                            color: '#0f0',
+                            textDecoration: 'none',
+                            fontSize: 14,
+                            borderBottom: '1px solid #333'
+                          }}
+                          onClick={() => setShowAdminMenu(false)}
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
-            </div>
-            <button onClick={() => {
-              handleLogout();
-              navigate('/login');
-            }} style={{ background: '#d33', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: 4 }}>
-              Logout
-            </button>
-          </nav>
+</div>
+<button onClick={() => {
+  handleLogout();
+  navigate('/login');
+}} style={{ background: '#d33', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: 4 }}>
+  Logout
+</button>
+</nav>
 
-          <div style={{ padding: 20 }}>
-            <Routes>
-              {/* BOMs FIRST */}
-              <Route path="/boms" element={<BomList boms={boms} loading={false} onEdit={() => {}} onDelete={refreshBoms} />} />
-              <Route path="/boms/new" element={<BomForm products={products} onSuccess={refreshBoms} onCancel={() => navigate('/boms')} />} />
-              <Route path="/boms/:id" element={<BomForm products={products} onSuccess={refreshBoms} onCancel={() => navigate('/boms')} />} />
+<div style={{ padding: 20 }}>
+<Routes>
+  <Route path="/login" element={<Login onLogin={handleLogin} />} />
+  <Route path="*" element={<Navigate to="/login" />} />
 
-              {/* Products AFTER */}
-              <Route path="/products" element={<ProductList products={products} onDelete={refreshProducts} />} />
-              <Route path="/products/new" element={<ProductForm onSuccess={refreshProducts} onCancel={() => navigate('/products')} />} />
-              <Route path="/products/:id" element={<ProductForm onSuccess={refreshProducts} onCancel={() => navigate('/products')} />} />
-                
-              <Route path="/schedules" element={<ScheduleList />} />
-              <Route path="/schedules/new" element={<ScheduleForm />} />
-              <Route path="/schedules/:id" element={<ScheduleForm />} />
+  {/* BOMs */}
+  {/* <Route path="/boms" element={<BomList boms={boms} loading={false} onEdit={() => {}} onDelete={refreshBoms} />} />
+  <Route path="/boms/new" element={<BomForm products={products as any} onSuccess={refreshBoms} onCancel={() => navigate('/boms')} />} />
+  <Route path="/boms/:id" element={<BomForm products={products as any} onSuccess={refreshBoms} onCancel={() => navigate('/boms')} />} /> */}
 
-              <Route 
-                path="/floor" 
-                element={signalRReady ? <FloorDashboard /> : <p>Connecting to floor...</p>} 
-              />
-              <Route path="/workorder/new" element={<WorkOrderForm />} />
-              <Route path="/workorder/edit/:id" element={<WorkOrderForm />} />
+  {/* Products */}
+  <Route path="/products" element={<ProductList products={products} refreshProducts={refreshProducts} />} />
+  <Route path="/products/new" element={<ProductNew />} />
+  <Route path="/products/:id" element={<ProductDetails />} />
+  <Route path="/products/:id/edit" element={<ProductEdit />} />
 
-              <Route path="/reports" element={<Reporting />} />
-              <Route path="/gantt" element={<GanttChart />} />
+  {/* Schedules */}
+  {/* <Route path="/schedules" element={<ScheduleList />} />
+  <Route path="/schedules/new" element={<ScheduleForm />} />
+  <Route path="/schedules/:id" element={<ScheduleForm />} /> */}
 
-              {userRole === 'Admin' && (
-                <>
-                  <Route path="/users" element={<UserList users={users} loading={false} onEdit={() => {}} onDelete={refreshUsers} />} />
-                  <Route path="/users/new" element={<UserForm onSuccess={refreshUsers} onCancel={() => navigate('/users')} />} />
-                  <Route path="/users/:id" element={<UserForm onSuccess={refreshUsers} onCancel={() => navigate('/users')} />} />
-                  <Route path="/api" element={<ApiDocs />} />
-                </>
-              )}
+  <Route path="/floor" element={signalRReady ? <FloorDashboard /> : <p>Connecting...</p>} />
+  <Route  path="/workorder/new" element={<WorkOrderForm onSuccess={() => navigate('/floor')} onCancel={() => navigate('/floor')} />}/>
+  <Route path="/workorder/edit/:id" element={<WorkOrderEdit />} />
+  {/* <Route path="/reports" element={<Reporting />} /> */}
+  {/* <Route path="/gantt" element={<GanttChart />} /> */}
 
-              <Route path="*" element={<Navigate to="/products" />} />
-            </Routes>
+  <Route path="/molds" element={<MoldList />} />
+  <Route path="/molds/new" element={<MoldForm onSuccess={() => navigate('/molds')} />} />
+  <Route path="/molds/:id" element={<MoldForm onSuccess={() => navigate('/molds')} />} />
+
+  {userRole === 'Admin' && (
+    <>
+      <Route path="/users" element={<UserList users={users} loading={false} onEdit={() => {}} onDelete={refreshUsers} />} />
+      <Route path="/users/new" element={<UserForm onSuccess={refreshUsers} onCancel={() => navigate('/users')} />} />
+      <Route path="/users/:id" element={<UserForm onSuccess={refreshUsers} onCancel={() => navigate('/users')} />} />
+      <Route path="/api" element={<ApiDocs />} />
+
+      <Route path="/materials" element={<MaterialList />} />
+      <Route path="/materials/new" element={<MaterialForm onSuccess={() => navigate('/materials')} />} />
+      <Route path="/materials/:id" element={<MaterialForm onSuccess={() => navigate('/materials')} />} />
+
+      <Route path="/colorants" element={<ColorantList />} />
+      <Route path="/colorants/new" element={<ColorantForm onSuccess={() => navigate('/colorants')} />} />
+      <Route path="/colorants/:id" element={<ColorantForm onSuccess={() => navigate('/colorants')} />} />
+
+      <Route path="/additives" element={<AdditiveList />} />
+      <Route path="/additives/new" element={<AdditiveForm onSuccess={() => navigate('/additives')} />} />
+      <Route path="/additives/:id" element={<AdditiveForm onSuccess={() => navigate('/additives')} />} />
+
+      <Route path="/inventory" element={<InventoryDashboard />} />
+    </>
+  )}
+
+  <Route path="*" element={<Navigate to="/products" />} />
+</Routes>
           </div>
         </>
       ) : (

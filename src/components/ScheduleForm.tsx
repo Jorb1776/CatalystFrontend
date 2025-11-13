@@ -2,7 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from '../axios';
+import { Product } from '../types/Product';
 
+interface ProductFormProps {
+  product?: Product;
+  onSuccess: () => void;  // REQUIRED
+  onCancel: () => void;
+}
 interface WorkOrder {
   workOrderId: number;
   poNumber: string;

@@ -1,36 +1,35 @@
-// src/signalr.ts
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5099';
 let connection: HubConnection | null = null;
 
-export async function startSignalR() {
+export async function startSignalR(): Promise<HubConnection> {
   if (connection) return connection;
+
+  const token = localStorage.getItem('token');
+  if (!token) throw new Error('No token');
 
   console.log('Starting SignalR...');
   connection = new HubConnectionBuilder()
-    .withUrl('http://localhost:5140/hubs/floor')
+    .withUrl(`${API_URL}/hubs/floor`, {
+      accessTokenFactory: () => token
+    })
     .configureLogging(LogLevel.Information)
     .withAutomaticReconnect()
     .build();
 
-  try {
-    await connection.start();
-    console.log('SignalR connected.');
-  } catch (err) {
-    console.error('SignalR failed:', err);
-    connection = null;
-    throw err;
-  }
+  await connection.start();
+  console.log('SignalR Connected');
   return connection;
 }
 
-export function stopSignalR() {
+export function getConnection(): HubConnection | null {
+  return connection;
+}
+
+export function stopSignalR(): void {
   if (connection) {
-    connection.stop().catch(err => console.error('Stop failed:', err));
+    connection.stop();
     connection = null;
   }
-}
-
-export function getConnection() {
-  return connection;
 }

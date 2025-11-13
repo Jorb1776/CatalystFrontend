@@ -16,11 +16,25 @@ export default function WorkOrderBoard() {
   const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
 
+  const columns = ['New', 'Active', 'OnHold', 'Done'];
+
+
   const startWO = async (id: number) => {
-  await fetch(`/api/workorder/${id}/start`, { method: 'PUT' });
+    const res = await fetch(`/api/workorder/${id}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (!res.ok) throw new Error('Start failed');
+  };
 
   const completeWO = async (id: number) => {
-    await fetch(`/api/workorder/${id}/complete`, { method: 'PUT' });
+    const res = await fetch(`/api/workorder/${id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (!res.ok) throw new Error('Complete failed');
   };
 
   useEffect(() => {
@@ -65,12 +79,11 @@ export default function WorkOrderBoard() {
     return () => { conn.stop(); };
   }, []);
 
-  const columns = ['New', 'Active', 'OnHold', 'Done'];
   const priorityColor = (p: number) =>
     p <= 2 ? 'bg-red-100 border-red-500' : p <= 4 ? 'bg-yellow-100' : 'bg-green-100';
 
   return (
-    <div className="p-4">
+<div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Production Floor</h1>
       <div className="grid grid-cols-4 gap-4">
         {columns.map(col => (
@@ -89,14 +102,17 @@ export default function WorkOrderBoard() {
                   {o.dueDate && <div className="text-xs">Due: {new Date(o.dueDate).toLocaleDateString()}</div>}
 
                   {/* START BUTTON */}
-                  {o.status === 'New' && (
-                    <button 
-                      onClick={() => startWO(o.workOrderId)} 
-                      className="mt-2 text-xs bg-green-600 text-white px-2 py-1 rounded"
-                    >
-                      Start
-                    </button>
-                  )}
+                    {o.status === 'New' && (
+                      <button 
+                        onClick={async () => {
+                          try { await startWO(o.workOrderId); }
+                          catch { alert('Failed to start'); }
+                        }} 
+                        className="mt-2 text-xs bg-green-600 text-white px-2 py-1 rounded"
+                      >
+                        Start
+                      </button>
+                    )}
 
                   {/* COMPLETE BUTTON */}
                   {o.status === 'Active' && (
@@ -115,4 +131,4 @@ export default function WorkOrderBoard() {
       </div>
     </div>
   );
-}}
+}

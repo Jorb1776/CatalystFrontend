@@ -1,9 +1,20 @@
 // src/components/GanttChart.tsx
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Gantt } from '@svar-ui/react-gantt';
 import '@svar-ui/react-gantt/all.css';
 import axios from '../axios';
 import { getConnection } from '../signalr';
+
+interface ApiWorkOrder {
+  workOrderId: number;
+  poNumber: string;
+  partNumber?: string;
+  quantity?: number;
+  startDate?: string;
+  endDate?: string;
+  dueDate: string;
+  status: string;
+}
 
 interface WorkOrderTask {
   id: number;
@@ -16,6 +27,8 @@ interface WorkOrderTask {
   workOrderId: number;
   poNumber: string;
   status: string;
+  color: string;
+  tooltip: string;
 }
 
 export default function GanttChart() {
@@ -23,15 +36,10 @@ export default function GanttChart() {
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
-      const res = await axios.get('/api/workorder', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.get<ApiWorkOrder[]>('/api/workorder');
 
-      const ganttTasks: WorkOrderTask[] = res.data.map((wo: any) => {
+      const ganttTasks: WorkOrderTask[] = res.data.map(wo => {
         let start = wo.startDate ? new Date(wo.startDate) : new Date(wo.dueDate);
         let end = wo.endDate ? new Date(wo.endDate) : new Date(wo.dueDate);
 
@@ -48,17 +56,18 @@ export default function GanttChart() {
           start,
           end,
           duration,
-          progress: wo.status === 'Done' ? 100 : wo.status === 'Active' ? 70 : wo.status === 'New' ? 20 : 0,
-          type: 'task' as const,
+          progress: getProgress(wo.status),
+          type: 'task',
           workOrderId: wo.workOrderId,
           poNumber: wo.poNumber,
-          status: wo.status
+          status: wo.status,
+          color: getStatusColor(wo.status),
+          tooltip: `Qty: ${wo.quantity || 0}\nDue: ${new Date(wo.dueDate).toLocaleString()}\nStatus: ${wo.status}`
         };
       });
-
       setTasks(ganttTasks);
-    } catch (err) {
-      console.error('Gantt fetch failed:', err);
+    } catch {
+      console.error('Fetch failed');
     } finally {
       setLoading(false);
     }
@@ -68,26 +77,35 @@ export default function GanttChart() {
     fetchData();
 
     const connection = getConnection();
-    if (!connection) return;
+    if (connection) {
+      connection.on('FloorUpdate', (msg) => {
+        if (msg.action === 'WorkOrderCreated' || msg.action === 'WorkOrderUpdated' || msg.action === 'WorkOrderStatusChanged') {
+          fetchData();
+        } else if (msg.action === 'WorkOrderCompleted') {
+          setTasks(prev =>
+            prev.map(wo =>
+              wo.workOrderId === msg.data.workOrderId 
+                ? { ...wo, end: new Date(msg.data.endDate) }
+                : wo
+            )
+          );
+        } else {
+          fetchData();
+        }
+      });
+    }
 
-    const handler = () => fetchData();
-    connection.on('FloorUpdate', handler);
-    return () => connection.off('FloorUpdate', handler);
+    return () => {
+      if (connection) connection.off('FloorUpdate');
+    };
   }, []);
 
-  const handleTaskChange = async (task: WorkOrderTask) => {
-    setTasks(prev => prev.map(t => t.id === task.id ? task : t));
-    try {
-      await axios.put(`/api/workorder/${task.id}/reschedule`, {
-        startDate: task.start.toISOString(),
-        endDate: task.end.toISOString()
-      });
-    } catch (err) {
-      console.error('Reschedule failed:', err);
-    }
+  const handleTaskChange = (task: WorkOrderTask) => {
+    axios.put(`/api/workorder/${task.workOrderId}`, {
+      startDate: task.start.toISOString(),
+      endDate: task.end.toISOString()
+    }).then(fetchData).catch(() => console.error('Update failed'));
   };
-
-  if (loading) return <p style={{ color: '#0f0', textAlign: 'center', padding: 40 }}>Loading Gantt...</p>;
 
   return (
     <div style={{
@@ -139,18 +157,38 @@ export default function GanttChart() {
           </p>
         </div>
       ) : (
-<div className="gantt-container" style={{ height: 600 }}>
-  <Gantt
-    tasks={tasks}
-    onTaskChange={handleTaskChange}
-    scales={[
-      { unit: 'day', step: 1, format: 'MMM dd' },
-      { unit: 'week', step: 1, format: 'wo' },
-      { unit: 'month', step: 1, format: 'MMM yyyy' }
-    ]}
-  />
-</div>
+        <div className="gantt-container" style={{ height: 600 }}>
+          <Gantt
+            tasks={tasks}
+            onTaskChange={handleTaskChange}
+            scales={[
+              { unit: 'day', step: 1, format: 'MMM dd' },
+              { unit: 'week', step: 1, format: 'wo' },
+              { unit: 'month', step: 1, format: 'MMM yyyy' }
+            ]}
+          />
+        </div>
       )}
     </div>
   );
 }
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'New': return '#ffeb3b';
+    case 'Active': return '#4caf50';
+    case 'OnHold': return '#ff9800';
+    case 'Done': return '#2196f3';
+    case 'Cancelled': return '#f44336';
+    default: return '#666';
+  }
+};
+
+const getProgress = (status: string) => {
+  switch (status) {
+    case 'New': return 0;
+    case 'Active': return 50;
+    case 'Done': return 100;
+    default: return 0;
+  }
+};
