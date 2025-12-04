@@ -1,21 +1,15 @@
+// src/components/WorkOrderForm.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from '../axios';
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
-
-interface Product { 
-  productID: number; 
-  partNumber: string; 
-  partName: string; 
-  mold?: { name: string }; 
-  batchSize?: number; 
-  material?: { name: string }; 
-}
+import { useNavigate, useParams } from 'react-router-dom';
+import { Product, MoldInsert } from '../types/Product';
 
 // Define DTO
 interface WorkOrderRequest {
   poNumber: string;
   partNumber: string;
+  description: string;
   moldNumber: string;
   batchQuantity: number;
   material: string;
@@ -28,16 +22,20 @@ interface WorkOrderFormProps {
   onCancel: () => void;
 }
 
-export default function WorkOrderForm({ workOrderId, onSuccess, onCancel }: WorkOrderFormProps) {
+export default function WorkOrderForm({ onSuccess, onCancel }: WorkOrderFormProps) {
+  const { id } = useParams<{ id: string }>();
+  const workOrderId = id ? +id : undefined;
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCustom, setIsCustom] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [form, setForm] = useState<WorkOrderRequest>({
     poNumber: '',
     partNumber: '',
+    description: '',
     moldNumber: '',
     batchQuantity: 0,
     material: '',
@@ -69,6 +67,7 @@ useEffect(() => {
         setForm({
           poNumber: data.poNumber || '',
           partNumber: data.partNumber || '',
+          description: data.description || '',
           moldNumber: data.moldNumber || '',
           batchQuantity: data.batchQuantity || 0,
           material: data.material || '',
@@ -97,12 +96,24 @@ useEffect(() => {
         }
       };
 
+      const handleDelete = async () => {
+        try {
+          await axios.delete(`/api/workorder/${workOrderId}`);
+          toast.success('Work Order Deleted');
+          navigate('/floor');
+        } catch (err: any) {
+          console.error('Delete Error:', err);
+          toast.error(`Delete failed: ${err.response?.data || err.message}`);
+        }
+      };
+
   useEffect(() => {
       if (selectedProduct && !isCustom) {
         setForm(prev => ({
           ...prev,
           partNumber: selectedProduct.partNumber,
-          moldNumber: selectedProduct.mold?.name || '',
+          description: selectedProduct.partName,
+          moldNumber: selectedProduct.moldInsert?.fullNumber || '',
           batchQuantity: selectedProduct.batchSize || 0,
           material: selectedProduct.material?.name || ''
         }));
@@ -114,15 +125,8 @@ useEffect(() => {
       <h2 style={{ color: '#0f0', marginBottom: 20 }}>{workOrderId ? 'Update Work Order' : 'Create Work Order'}</h2>
 
       <div style={field}>
-        <label>PO Number *</label>
-        <input required value={form.poNumber} onChange={e => setForm({...form, poNumber: e.target.value})} style={inputStyle} />
-      </div>
-
-      <div style={field}>
-        <label>Use Existing Product</label>
+        <label>Search Product</label>
         <input
-          type="text"
-          placeholder="Search part number or name..."
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
           style={inputStyle}
@@ -157,6 +161,10 @@ useEffect(() => {
           <label>Part Number *</label>
           <input required value={form.partNumber} onChange={e => setForm({...form, partNumber: e.target.value})} disabled={!isCustom && !!selectedProduct} style={inputStyle} />
         </div>
+         <div style={field}>
+          <label>Description</label>
+          <input required value={form.description} onChange={e => setForm({...form, description: e.target.value})} disabled={!isCustom && !!selectedProduct} style={inputStyle} />
+        </div>
         <div style={field}>
           <label>Mold Number</label>
           <input value={form.moldNumber} onChange={e => setForm({...form, moldNumber: e.target.value})} disabled={!isCustom && !!selectedProduct} style={inputStyle} />
@@ -176,11 +184,39 @@ useEffect(() => {
       </div>
 
       <div style={buttonRow}>
+        {workOrderId && (
+          <button type="button" onClick={() => setConfirmDelete(true)} style={deleteBtn}>
+            Delete
+          </button>
+        )}
         <button type="submit" style={btnStyle}>
           {workOrderId ? 'Update Work Order' : 'Create Work Order'}
         </button>
         <button type="button" onClick={() => navigate(-1)} style={cancelBtn}>Cancel</button>
       </div>
+
+      {/* Delete Confirm Modal */}
+      {confirmDelete && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }} onClick={() => setConfirmDelete(false)}>
+          <div style={{ background: '#111', padding: 20, borderRadius: 8, width: 300, color: '#fff' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 12px', color: '#f44' }}>Delete Work Order?</h3>
+            <p style={{ fontSize: '0.9rem', margin: '0 0 16px', color: '#aaa' }}>
+              This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirmDelete(false)} style={{ background: '#444', color: '#fff', padding: '6px 12px', borderRadius: 4 }}>
+                Cancel
+              </button>
+              <button onClick={handleDelete} style={{ background: '#f44', color: '#000', padding: '6px 12px', borderRadius: 4 }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
@@ -194,3 +230,4 @@ const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1
 const buttonRow: React.CSSProperties = { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 };
 const btnStyle: React.CSSProperties = { padding: '12px 24px', background: '#0f0', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' };
 const cancelBtn: React.CSSProperties = { ...btnStyle, background: '#444', color: '#fff' };
+const deleteBtn: React.CSSProperties = { ...btnStyle, background: '#f44', color: '#fff' };

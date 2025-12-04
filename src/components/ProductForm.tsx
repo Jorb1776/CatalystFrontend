@@ -24,9 +24,9 @@ export default function ProductForm({ productId, onSuccess, onCancel }: ProductF
   const [selectedAdditives, setSelectedAdditives] = useState<{id: number, pct: string}[]>([]);
 
   const [form, setForm] = useState({
-    partNumber: '', partName: '', materialId: '', colorantId: '', moldId: '',
+    partNumber: '', partName: '', materialId: '', colorantId: '', moldInsertId: '',
     batchSize: '', note: '', boxSize: '', fullBoxQty: '', imagePath: '', moldPath: '',
-    cavities: '', insertId: '', binId: '', unitPrice: '', description: ''
+    cavities: '', binId: '', unitPrice: '', description: ''
   });
 
   const BOX_SIZES = ['6x6x6','8x8x8','10x10x10','12x12x12','14x14x14','16x16x16','18x18x18','20x20x20'];
@@ -55,7 +55,7 @@ useEffect(() => {
           partName: p.partName || '',
           materialId: p.material?.materialID?.toString() || '',
           colorantId: p.colorant?.colorantID?.toString() || '',
-          moldId: p.mold?.moldID?.toString() || '',
+          moldInsertId: p.moldInsertId?.toString() || '',
           batchSize: p.batchSize?.toString() || '',
           note: p.note || '',
           boxSize: p.boxSize || '',
@@ -63,7 +63,6 @@ useEffect(() => {
           imagePath: p.imagePath || '',
           moldPath: p.moldPath || '',
           cavities: p.cavities?.toString() || '',
-          insertId: p.insertId?.toString() || '',
           binId: p.binId || '',
           unitPrice: p.unitPrice?.toString() || '',
           description: p.description || ''
@@ -84,7 +83,7 @@ useEffect(() => {
       partName: form.partName,
       materialID: form.materialId ? +form.materialId : null,
       colorantID: form.colorantId ? +form.colorantId : null,
-      moldId: form.moldId ? +form.moldId : null,
+      moldInsertId: form.moldInsertId ? +form.moldInsertId : null,
       batchSize: +form.batchSize || 0,
       note: form.note,
       boxSize: form.boxSize,
@@ -92,7 +91,6 @@ useEffect(() => {
       imagePath: form.imagePath,
       moldPath: form.moldPath,
       cavities: +form.cavities || 0,
-      insertId: form.insertId ? +form.insertId : null,
       binId: form.binId || null,
       unitPrice: parseFloat(form.unitPrice) || 0,
       description: form.description,
@@ -132,10 +130,10 @@ useEffect(() => {
           </select>
         </div>
 
-        <div style={field}><label>Mold</label>
-          <select value={form.moldId} onChange={e => setForm({...form, moldId: e.target.value})} style={selectStyle}>
+        <div style={field}><label>Mold Base</label>
+          <select value={form.moldInsertId} onChange={e => setForm({...form, moldInsertId: e.target.value})} style={selectStyle}>
             <option value="">No Mold</option>
-            {molds.map(m => <option key={m.moldID} value={m.moldID}>{m.name}</option>)}
+            {molds.map(m => <option key={m.moldID} value={m.moldID}>{m.baseNumber}</option>)}
           </select>
         </div>
         <div style={field}><label>Cavities</label><input type="number" value={form.cavities} onChange={e => setForm({...form, cavities: e.target.value})} style={inputStyle} /></div>
@@ -151,8 +149,8 @@ useEffect(() => {
         </div>
         <div style={field}><label>Full Box Qty</label><input type="number" value={form.fullBoxQty} onChange={e => setForm({...form, fullBoxQty: e.target.value})} style={inputStyle} /></div>
 
-        <div style={field}><label>Insert ID</label><input type="number" value={form.insertId} onChange={e => setForm({...form, insertId: e.target.value})} style={inputStyle} /></div>
         <div style={field}><label>Bin ID</label><input value={form.binId} onChange={e => setForm({...form, binId: e.target.value})} style={inputStyle} /></div>
+        <div style={field}></div>
 
         {/* <div style={{...field, gridColumn: '1 / -1'}}><label>Description</label><input value={form.description} onChange={e => setForm({...form, description: e.target.value})} style={inputStyle} /></div> */}
         <div style={{...field, gridColumn: '1 / -1'}}><label>Note</label><textarea value={form.note} onChange={e => setForm({...form, note: e.target.value})} style={{...inputStyle, height: 80}} /></div>

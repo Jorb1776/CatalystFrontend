@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(git -C \"C:\\Users\\jorda\\catalyst-gui\" log --all --name-only --pretty=format:)",
+      "Bash(git -C \"C:\\Users\\jorda\\catalyst-gui\" log --all --oneline)",
+      "Bash(git -C \"C:\\Users\\jorda\\catalyst-gui\" config --file .gitmodules --get-regexp path)",
+      "Bash(grep:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -37,6 +37,18 @@ import ColorantList from './pages/ColorantList';
 import ColorantForm from './pages/ColorantForm';
 import AdditiveList from './pages/AdditiveList';
 import AdditiveForm from './pages/AdditiveForm';
+import ToolPicturesGallery from './pages/ToolPicturesGallery';
+import UniversalBulkUpload from './pages/UniversalBulkUpload';
+import MoldToolPicturesUpload from './pages/MoldToolPicturesUpload';
+
+
+
+import FirstPieceApprovalDashboard from './pages/FirstPieceApprovalDashboard';
+import PartEngineeringHub from './pages/PartEngineeringHub';
+import UploadingEngineeringFiles from './pages/UploadingEngineeringFiles';
+import QsiForm from 'components/QsiForm';
+
+
 
 
 
@@ -183,57 +195,74 @@ function AppContent({
               <Link to="/molds" style={navLink}>Molds</Link>
               {/* <Link to="/gantt" style={navLink}>Gantt</Link> */}
               {userRole === 'Admin' && (
-                <div style={{ position: 'relative' }}>
-                  
+                <div style={{ 
+                  position: 'relative', 
+                  display: 'inline-block'   // ← THIS is the key
+                }}>
                   <button
-                    onClick={() => setShowAdminMenu(!showAdminMenu)}
+                    onClick={() => setShowAdminMenu(prev => !prev)}
                     style={{
                       ...navLink,
-                      background: 'none',
+                      background: 'transparent',
                       border: 'none',
                       cursor: 'pointer',
-                      padding: '0 12px',
-                      fontWeight: 500
+                      padding: '0 16px',
+                      fontWeight: 600,
+                      color: '#0f0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      height: '100%',
                     }}
                   >
-                    Admin ▼
+                    Admin <span style={{ fontSize: '0.75em', marginTop: 1 }}>
+                      {showAdminMenu ? '▲' : '▼'}
+                    </span>
                   </button>
+
                   {showAdminMenu && (
                     <div
                       style={{
                         position: 'absolute',
                         top: '100%',
+                        left: 0,
                         right: 0,
-                        background: '#222',
+                        minWidth: 180,
+                        background: '#111',
                         border: '1px solid #0f0',
-                        borderRadius: 6,
-                        minWidth: 160,
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        boxShadow: '0 8px 24px rgba(0, 255, 0, 0.25)',
                         zIndex: 1000,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                        marginTop: 4,
                       }}
                       onMouseLeave={() => setShowAdminMenu(false)}
                     >
                       {[
+                        { to: '/upload-bulk', label: 'Bulk Upload' },
                         { to: '/inventory', label: 'Inventory' },
                         { to: '/users', label: 'Users' },
-                        // { to: '/api', label: 'API Docs' },
-                        // { to: '/materials', label: 'Materials' },
-                        // { to: '/colorants', label: 'Colorants' },
-                        // { to: '/additives', label: 'Additives' },
-                        
-                      ].map(item => (
+                      ].map((item) => (
                         <Link
                           key={item.to}
                           to={item.to}
+                          onClick={() => setShowAdminMenu(false)}
                           style={{
                             display: 'block',
-                            padding: '10px 16px',
+                            padding: '12px 18px',
                             color: '#0f0',
                             textDecoration: 'none',
-                            fontSize: 14,
-                            borderBottom: '1px solid #333'
+                            fontSize: '14px',
+                            transition: 'all 0.18s ease',
                           }}
-                          onClick={() => setShowAdminMenu(false)}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = '#0f0';
+                            e.currentTarget.style.color = '#000';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.color = '#0f0';
+                          }}
                         >
                           {item.label}
                         </Link>
@@ -302,6 +331,14 @@ function AppContent({
       <Route path="/additives/:id" element={<AdditiveForm onSuccess={() => navigate('/additives')} />} />
 
       <Route path="/inventory" element={<InventoryDashboard />} />
+      <Route path="/upload-bulk" element={<UniversalBulkUpload />} />
+      <Route path="/products/:id/upload-engineering" element={<UploadingEngineeringFiles />} />
+      <Route path="/part/:partNumber/engineering" element={<PartEngineeringHub />} />
+      <Route path="/molds/:moldId/tool-pictures" element={<MoldToolPicturesUpload />} />
+      <Route path="/products/:id/tool-pictures" element={<ToolPicturesGallery />} />
+
+      <Route path="/qsi/:productId" element={<QsiForm />} />
+      <Route path="/approvals" element={<FirstPieceApprovalDashboard />} />
     </>
   )}
 

@@ -6,6 +6,7 @@ export const getStatusColor = (status: string): string => {
     case 'OnHold': return '#ff9800';
     case 'Done': return '#2196f3';
     case 'Cancelled': return '#f44336';
+    case 'FirstPiecePending': return '#ff0';
     default: return '#666';
   }
 };

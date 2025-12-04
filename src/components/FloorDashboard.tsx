@@ -4,11 +4,14 @@ import axios from '../axios';
 import { getConnection, startSignalR } from '../signalr';
 import { useNavigate } from 'react-router-dom';
 import { WorkOrderCard } from './WorkOrderCard';
+import FirstPieceModal from './FirstPieceModal';
+import toast from 'react-hot-toast';
 
 interface ApiWorkOrder {
   workOrderId: number;
   poNumber: string;
   partNumber: string;
+  description?: string;
   status: string;
   priority: number;
   customerName: string;
@@ -32,12 +35,44 @@ export default function FloorDashboard() {
   const [completedSearch, setCompletedSearch] = useState('');
   const [completingId, setCompletingId] = useState<number | null>(null);
   const [actualQty, setActualQty] = useState<string>('');
+  const [showFirstPiece, setShowFirstPiece] = useState<WorkOrder | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [processingUndo, setProcessingUndo] = useState<number | null>(null);
 
-      const [confirmAction, setConfirmAction] = useState<{
-      id: number;
-      type: 'start' | 'undo';
-      wo: WorkOrder;
-    } | null>(null);
+
+  const [confirmAction, setConfirmAction] = useState<{
+    id: number;
+    type: 'start' | 'undo' | 'delete' | 'resend';
+    wo: WorkOrder;
+  } | null>(null);
+
+  const getStatusColor = (status: string) => {
+  switch (status) {
+    case "FirstPiecePending": return "#ff0";  // Yellow
+    case "Active": return "#0f0";             // Green
+    case "Done": return "#888";
+    default: return "#0af";                   // Blue for New
+  }
+};
+
+const loadPendingCount = async () => {
+  try {
+    const res = await axios.get<any[]>('/api/sampleapproval/pending');
+    setPendingCount(res.data.length);
+  } catch {
+    // silent
+  }
+};
+
+// Add this useEffect
+useEffect(() => {
+  loadPendingCount();
+  const interval = setInterval(loadPendingCount, 10000);
+  return () => clearInterval(interval);
+}, []);
+
+
+
 
   // FILTERS
   const filteredActive = workOrders
@@ -60,26 +95,14 @@ export default function FloorDashboard() {
       });
 
 
-    const startOrder = async (id: number) => {
-      const wo = workOrders.find(w => w.workOrderId === id);
-      if (!wo) return;
-
-      setWorkOrders(prev => prev.map(w =>
-        w.workOrderId === id
-          ? { ...w, status: 'Active', startDate: new Date().toISOString() }
-          : w
-      ));
-
-      try {
-        await axios.post(`/api/workorder/${id}/start`);  // ← POST, not PUT
-      } catch (err: any) {
-        console.error('Start failed:', err);
-        alert(`Failed to start: ${err.response?.data || err.message}`);
-        setWorkOrders(prev => prev.map(w =>
-          w.workOrderId === id ? { ...w, status: wo.status, startDate: wo.startDate } : w
-        ));
-      }
-    };
+      const startOrder = async (id: number) => {
+        try {
+          await axios.post(`/api/workorder/${id}/start`);
+          // Let SignalR do the update – it will come back as FirstPiecePending
+        } catch (err: any) {
+          toast.error('Failed to start');
+        }
+      };
 
 
     const completeOrder = async () => {
@@ -103,6 +126,29 @@ export default function FloorDashboard() {
       }
     };
 
+    const deleteOrder = async (id: number) => {
+      setWorkOrders(prev => prev.filter(w => w.workOrderId !== id));
+      try {
+        await axios.delete(`/api/workorder/${id}`);
+      } catch (err: any) {
+        console.error('Delete failed:', err);
+        alert(`Delete failed: ${err.response?.data || err.message}`);
+        // Re-fetch to sync
+        const res = await axios.get<WorkOrder[]>('/api/workorder');
+        setWorkOrders(res.data);
+      }
+    };
+
+    const resendEmail = async (id: number) => {
+      try {
+        await axios.post(`/api/workorder/${id}/resend-email`);
+        alert('Email resent');
+      } catch (err: any) {
+        console.error('Resend failed:', err);
+        alert(`Resend failed: ${err.response?.data || err.message}`);
+      }
+    };
+
     useEffect(() => {
       const loadWorkOrders = async () => {
         try {
@@ -115,8 +161,12 @@ export default function FloorDashboard() {
         }
       };
 
+   
+
+
     loadWorkOrders();
 
+    
     const initSignalR = async () => {
       try {
         const conn = await startSignalR();
@@ -140,7 +190,6 @@ export default function FloorDashboard() {
         setSignalRStatus('error');
       }
     };
-
     initSignalR();
 
     return () => {
@@ -149,33 +198,86 @@ export default function FloorDashboard() {
     };
   }, []);
 
-      const undoStart = async (id: number) => {
-          const wo = workOrders.find(w => w.workOrderId === id);
-          if (!wo) return;
+const [undoingId, setUndoingId] = useState<number | null>(null);
 
-          setWorkOrders(prev => prev.map(w =>
-            w.workOrderId === id
-              ? { ...w, status: 'New', startDate: undefined }
-              : w
-          ));
+const [isUndoing, setIsUndoing] = useState(false);
 
-          try {
-            await axios.post(`/api/workorder/${id}/undo-start`);
-          } catch (err: any) {
-            console.error('Undo failed:', err);
-            alert(`Undo failed: ${err.response?.data || err.message}`);
-            setWorkOrders(prev => prev.map(w =>
-              w.workOrderId === id ? { ...w, status: wo.status, startDate: wo.startDate } : w
-            ));
-          }
+  const undoStart = async (id: number) => {
+    if (processingUndo === id) return;
+    setProcessingUndo(id);
+
+    setWorkOrders(prev => prev.map(wo =>
+      wo.workOrderId === id
+        ? { ...wo, status: 'New', startDate: undefined }
+        : wo
+    ));
+
+    try {
+      await axios.post(`/api/sampleapproval/${id}/undo-start`);
+      toast.success('Reset to New');
+    } catch (err: any) {
+      if (err.response?.status !== 400 && err.response?.status !== 404) {
+        toast.error('Undo failed');
+        await refreshWorkOrders();
+      }
+    } finally {
+      setProcessingUndo(null);
+    }
+  };
+
+const refreshWorkOrders = async () => {
+  try {
+    const res = await axios.get<WorkOrder[]>('/api/workorder');
+    setWorkOrders(res.data);
+  } catch (err) {
+    toast.error('Failed to refresh');
+  }
+};
+
+      useEffect(() => {
+    startSignalR()
+      .then(() => setSignalRStatus('connected'))
+      .catch(() => setSignalRStatus('error'));
+  }, []);
+
+    useEffect(() => {
+      const conn = getConnection();
+      if (!conn) return;
+
+      const handler = (message: any) => {
+        const { action, data } = message;
+        if (action === "WorkOrderUpdated") {
+          setWorkOrders(prev => 
+            prev.map(wo => wo.workOrderId === data.workOrderId ? { ...wo, ...data } : wo)
+          );
+        }
+      };
+
+      conn.on("FloorUpdate", handler);
+
+      return () => {
+        conn.off("FloorUpdate", handler);
+      };
+    }, []);
+
+
+      const handleFirstPieceSubmitted = async () => {
+          await refreshWorkOrders();
+          await startOrder(showFirstPiece!.workOrderId);
+          setShowFirstPiece(null);
         };
 
+
+
+
+
+
+
   return (
+
+    
     
     <div style={{ padding: 20, background: '#111', color: '#fff', minHeight: '100vh' }}>
-      
-
-      
       {loading && <p>Loading...</p>}
       {error && <p>Error: {error}</p>}
 
@@ -186,6 +288,8 @@ export default function FloorDashboard() {
         <button onClick={() => setView('completed')} style={{ background: view === 'completed' ? '#0f0' : '#444', color: view === 'completed' ? '#000' : '#fff', padding: '8px 16px', borderRadius: 8 }}>
           Completed
         </button>
+
+
 
         <button
             onClick={() => navigate('/workorder/new')}
@@ -199,8 +303,23 @@ export default function FloorDashboard() {
           >
             + New Work Order
           </button>
-      </div>
 
+                    <button
+            onClick={() => navigate('/approvals')}
+            style={{
+              background: '#0f0',
+              color: '#000',
+              padding: '8px 16px',
+              borderRadius: 8,
+              fontWeight: 'bold',
+              fontSize: '0.8rem',
+              border: '3px solid #000',
+              boxShadow: '0 0 10px #0f0'
+            }}
+          >
+            APPROVALS ({pendingCount})
+          </button>
+      </div>
 
       {view === 'floor' ? (
         <div>
@@ -224,7 +343,9 @@ export default function FloorDashboard() {
               setActualQty(order.quantity.toString());
             }
           }}
+          onResendEmail={resendEmail}
           setConfirmAction={setConfirmAction}
+          setShowFirstPiece={setShowFirstPiece}
         />
               ))}
           </div>
@@ -240,8 +361,10 @@ export default function FloorDashboard() {
           />
           <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
             {filteredCompleted.map(wo => (
-              <div key={wo.workOrderId} style={{ background: '#222', padding: 16, borderRadius: 12, border: '1px solid #0f0' }}>
+              <div key={wo.workOrderId} style={{ background: '#222', padding: 16, borderRadius: 12, border: '1px solid #0f0', position: 'relative' }}>
                 <h3 style={{ color: '#0f0', margin: '0 0 8px' }}>{wo.partNumber}</h3>
+                
+                <div style={{ fontSize: '0.8rem' }}>{wo.description}</div>
                 <div style={{ fontSize: '0.8rem' }}>PO: {wo.poNumber}</div>
                 <div style={{ fontSize: '0.7rem', color: '#aaa' }}>
                   Quantity Produced: {wo.quantityActual ?? wo.quantity}
@@ -249,12 +372,24 @@ export default function FloorDashboard() {
                 <div style={{ fontSize: '0.7rem', color: '#aaa' }}>
                   Completed: {wo.endDate ? new Date(wo.endDate).toLocaleDateString() : '—'}
                 </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmAction({ id: wo.workOrderId, type: 'resend', wo });
+                  }}
+                  style={{
+                    position: 'absolute', top: 8, right: 8,
+                    fontSize: '0.7rem', background: '#0af', color: '#000',
+                    padding: '2px 6px', borderRadius: 3
+                  }}
+                >
+                  Resend
+                </button>
               </div>
             ))}
           </div>
         </div>
       )}
-
 
         {/* START / UNDO CONFIRM MODAL */}
         {confirmAction && (
@@ -263,8 +398,15 @@ export default function FloorDashboard() {
             background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
           }} onClick={() => setConfirmAction(null)}>
             <div style={{ background: '#111', padding: 20, borderRadius: 8, width: 300, color: '#fff' }} onClick={e => e.stopPropagation()}>
-              <h3 style={{ margin: '0 0 12px', color: confirmAction.type === 'start' ? '#0f0' : '#f80' }}>
-                {confirmAction.type === 'start' ? 'Start Work Order?' : 'Undo Start?'}
+              <h3 style={{
+                margin: '0 0 12px',
+                color: confirmAction.type === 'start' ? '#0f0' :
+                      confirmAction.type === 'undo' ? '#f80' :
+                      confirmAction.type === 'delete' ? '#f44' : '#0af'
+              }}>
+                {confirmAction.type === 'start' ? 'Start Work Order?' :
+                confirmAction.type === 'undo' ? 'Undo Start?' :
+                confirmAction.type === 'delete' ? 'Delete Work Order?' : 'Resend Email?'}
               </h3>
               <p style={{ fontSize: '0.9rem', margin: '0 0 8px' }}>
                 WO: <strong>{confirmAction.wo.workOrderId}</strong> — {confirmAction.wo.partNumber}
@@ -278,21 +420,24 @@ export default function FloorDashboard() {
                 </button>
                 <button
                   onClick={() => {
-                    if (confirmAction.type === 'start') {
-                      startOrder(confirmAction.id);
-                    } else {
-                      undoStart(confirmAction.id);
-                    }
+                    if (confirmAction.type === 'start') startOrder(confirmAction.id);
+                    else if (confirmAction.type === 'undo') undoStart(confirmAction.id);
+                    else if (confirmAction.type === 'delete') deleteOrder(confirmAction.id);
+                    else if (confirmAction.type === 'resend') resendEmail(confirmAction.id);
                     setConfirmAction(null);
                   }}
                   style={{
-                    background: confirmAction.type === 'start' ? '#0f0' : '#f80',
+                    background: confirmAction.type === 'start' ? '#0f0' :
+                              confirmAction.type === 'undo' ? '#f80' :
+                              confirmAction.type === 'delete' ? '#f44' : '#0af',
                     color: '#000',
                     padding: '6px 12px',
                     borderRadius: 4
                   }}
                 >
-                  {confirmAction.type === 'start' ? 'Start' : 'Undo'}
+                  {confirmAction.type === 'start' ? 'Start' :
+                  confirmAction.type === 'undo' ? 'Undo' :
+                  confirmAction.type === 'delete' ? 'Delete' : 'Send'}
                 </button>
               </div>
             </div>
@@ -331,6 +476,17 @@ export default function FloorDashboard() {
           </div>
         )}
 
+      {showFirstPiece && (
+        <FirstPieceModal
+          woId={showFirstPiece.workOrderId}
+          partNumber={showFirstPiece.partNumber}
+          onClose={() => setShowFirstPiece(null)}
+          onSubmitted={() => setShowFirstPiece(null)}
+          setWorkOrders={setWorkOrders}  
+        />
+      )}
+      
+
       {/* SIGNALR STATUS */}
       <div style={{ position: 'fixed', bottom: 16, right: 16, fontSize: '0.8rem', color: signalRStatus === 'connected' ? '#0f0' : '#f80' }}>
         SignalR: {signalRStatus}
@@ -338,3 +494,5 @@ export default function FloorDashboard() {
     </div>
   );
 }
+
+

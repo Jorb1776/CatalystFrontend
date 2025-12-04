@@ -1,17 +1,18 @@
 import axios from 'axios';
 import { RefreshResponse } from './types/Auth';
 
-// Use env var — NO HARDCODE
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5099';
+const API_URL = process.env.REACT_APP_API_URL;
 
 const api = axios.create({
   baseURL: API_URL,
   timeout: 10000,
-  withCredentials: true,
+  //withCredentials: true,
 });
 
 // Request interceptor
+api.defaults.withCredentials = true;
 api.interceptors.request.use((config: any) => {
+  
   const token = localStorage.getItem('token');
   const isPublicEndpoint = 
     config.method?.toLowerCase() === 'get' && 
@@ -33,33 +34,19 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (!refreshToken) {
-        localStorage.clear();
-        window.location.href = '/login';
-        return Promise.reject(error);
-      }
-
       try {
-        const res = await api.post<RefreshResponse>('/api/auth/refresh', { refreshToken });
+        const res = await api.post<{ token: string }>('/api/auth/refresh');
         const { token } = res.data;
 
         localStorage.setItem('token', token);
         originalRequest.headers.Authorization = `Bearer ${token}`;
         return api(originalRequest);
-      } catch (refreshError) {
+      } catch {
         localStorage.clear();
         window.location.href = '/login';
-        return Promise.reject(refreshError);
+        return Promise.reject(error);
       }
     }
-
-    // ADD THIS: Prevent infinite 401 spam
-    if (error.response?.status === 401) {
-      localStorage.clear();
-      window.location.href = '/login';
-    }
-
     return Promise.reject(error);
   }
 );

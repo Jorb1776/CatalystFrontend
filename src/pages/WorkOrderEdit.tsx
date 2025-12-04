@@ -1,4 +1,4 @@
-// src/pages/WorkOrderEdit.tsx
+// src/pages/WorkOrderEdit.tsx (fixed)
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import WorkOrderForm from '../components/WorkOrderForm';
@@ -11,7 +11,7 @@ export default function WorkOrderEdit() {
     <div style={{ padding: 20 }}>
       <button onClick={() => navigate(-1)} style={backBtn}>Back</button>
       <WorkOrderForm
-        workOrderId={parseInt(id!)}
+        workOrderId={id ? parseInt(id) : undefined}
         onSuccess={() => navigate('/floor')}
         onCancel={() => navigate('/floor')}
       />

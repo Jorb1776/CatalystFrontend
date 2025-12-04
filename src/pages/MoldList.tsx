@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 
 interface Mold {
   moldID: number;
-  name: string;
+  baseNumber: string;
   cavityCount: number;
   materialCompatibility: string;
   maintenanceSchedule: string;
@@ -39,55 +39,66 @@ const MoldList = () => {
   }, []);
 
   const filteredMolds = molds.filter(m =>
-    m.name.toLowerCase().includes(search.toLowerCase())
+    m.baseNumber.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2>Molds</h2>
-        <input
-          type="text"
-          placeholder="Search molds..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            padding: '8px 12px',
-            background: '#222',
-            color: '#0f0',
-            border: '1px solid #0f0',
-            borderRadius: 4,
-            width: 240
-          }}
-        />
-        <Link to="/molds/new">
-          <button style={{ background: '#0c0', color: '#000', padding: '8px 16px', border: 'none' }}>
-            + New Mold
-          </button>
-        </Link>
+    <div style={{ padding: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <h2 style={{ color: '#0f0', margin: 0 }}>Molds</h2>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder="Search molds..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              padding: '10px 14px',
+              background: '#111',
+              color: '#0f0',
+              border: '1px solid #0f0',
+              borderRadius: 8,
+              width: 280,
+              fontSize: '1rem'
+            }}
+          />
+          <Link to="/molds/new">
+            <button style={{ background: '#0f0', color: '#000', padding: '10px 20px', border: 'none', borderRadius: 8, fontWeight: 'bold' }}>
+              + New Mold
+            </button>
+          </Link>
+        </div>
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
-          <tr style={{ borderBottom: '1px solid #0f0' }}>
-            <th style={{ textAlign: 'left', padding: 8 }}>Mold Number</th>
-            <th style={{ textAlign: 'left', padding: 8 }}>Actions</th>
+          <tr style={{ borderBottom: '2px solid #0f0' }}>
+            <th style={{ textAlign: 'left', padding: '12px 8px', color: '#0f0' }}>Mold Number</th>
+            <th style={{ textAlign: 'left', padding: '12px 8px', color: '#0f0' }}>Cavities</th>
+            <th style={{ textAlign: 'left', padding: '12px 8px', color: '#0f0' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {filteredMolds.length === 0 ? (
             <tr>
-              <td colSpan={2} style={{ padding: 16, textAlign: 'center', color: '#aaa' }}>
-                {search ? 'No molds found' : 'Loading...'}
+              <td colSpan={3} style={{ padding: 32, textAlign: 'center', color: '#aaa' }}>
+                {search ? 'No molds found' : 'No molds yet'}
               </td>
             </tr>
           ) : (
             filteredMolds.map(m => (
               <tr key={m.moldID} style={{ borderBottom: '1px solid #333' }}>
-                <td style={{ padding: 8 }}>{m.name}</td>
-                <td style={{ padding: 8 }}>
-                  <Link to={`/molds/${m.moldID}`} style={{ color: '#0c0', marginRight: 8 }}>Edit</Link>
-                  <button onClick={() => deleteMold(m.moldID)} style={{ color: '#d33', background: 'none', border: 'none' }}>
+                <td style={{ padding: '16px 8px', fontSize: '1.1rem' }}>{m.baseNumber}</td>
+                <td style={{ padding: '16px 8px', color: '#0f0' }}>{m.cavityCount}</td>
+                <td style={{ padding: '16px 8px' }}>
+                  <Link to={`/molds/${m.moldID}`} style={{ color: '#0f0', marginRight: 16 }}>Edit</Link>
+                  <Link to={`/molds/${m.moldID}/tool-pictures`} style={{ color: '#0c0', marginRight: 16 }}>
+                    Tool Photos
+                  </Link>
+                  <button
+                    onClick={() => deleteMold(m.moldID)}
+                    style={{ color: '#f44', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
                     Delete
                   </button>
                 </td>

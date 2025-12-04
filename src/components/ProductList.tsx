@@ -1,5 +1,5 @@
 // src/components/ProductList.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../axios';
 import { Product } from '../types/Product';
@@ -11,15 +11,14 @@ interface ProductListProps {
   refreshProducts: () => void;
 }
 
-
 const ProductList: React.FC<ProductListProps> = ({ products, onDelete, refreshProducts }) => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [filterMaterial, setFilterMaterial] = useState('');
   const [filterColor, setFilterColor] = useState('');
+  const [showBackToTop, setShowBackToTop] = useState(false); // ← MOVED HERE
 
-  
- const materials = Array.from(new Set(products.map(p => p.material?.name).filter(Boolean)));
+  const materials = Array.from(new Set(products.map(p => p.material?.name).filter(Boolean)));
   const colors = Array.from(new Set(products.map(p => p.colorant?.name).filter(Boolean)));
 
   const filteredProducts = products.filter(p => {
@@ -45,75 +44,133 @@ const ProductList: React.FC<ProductListProps> = ({ products, onDelete, refreshPr
     }
   };
 
+  // ← BACK TO TOP LOGIC — MOVED HERE
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 500);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
-    <div style={{ padding: 20 }}>
-      <h2 style={{ color: '#0f0', marginBottom: 16 }}>Products</h2>
-
-      <div style={filterBar}>
-        <input
-          type="text"
-          placeholder="Search products..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={searchInput}
-        />
-        <select
-          value={filterMaterial}
-          onChange={e => setFilterMaterial(e.target.value)}
-          style={filterSelect}
+    <>
+      {/* Back to Top Button */}
+      {showBackToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          style={{
+            position: 'fixed',
+            bottom: 30,
+            right: 30,
+            width: 65,
+            height: 55,
+            background: '#0f0',
+            color: '#000',
+            border: 'none',
+            borderRadius: '25%',
+            fontSize: '17px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            boxShadow: '0 4px 10px rgba(0, 255, 0, 0.4)',
+            zIndex: 999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.3s ease',
+          }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          aria-label="Back to top"
         >
-          <option value="">All Materials</option>
-          {materials.map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
-        <select
-          value={filterColor}
-          onChange={e => setFilterColor(e.target.value)}
-          style={filterSelect}
-        >
-          <option value="">All Colors</option>
-          {colors.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <button onClick={() => navigate('/products/new')} style={newBtn}>New Product</button>
-      </div>
+          Back to Top
+        </button>
+      )}
 
-      <div style={grid}>
-        {filteredProducts.map(p => (
-          <div key={p.productID} style={card}>
-            <h3 style={{ color: '#0f0', marginBottom: 8 }}>{p.partName}</h3>
-            <p><strong>Part:</strong> {p.partNumber}</p>
-            <p><strong>Material:</strong> {p.material?.name || 'None'}</p>
-            <p><strong>Color:</strong> {p.colorant?.name || 'None'}</p>
-            <p><strong>Mold:</strong> {p.mold?.name || 'None'}</p>
-            <p><strong>Full Box Qty:</strong> {p.fullBoxQty || '0'}</p>
-            <p><strong>Box Size:</strong> {p.boxSize || '—'}</p>
-            <p><strong>Bin ID:</strong> {p.binId || '—'}</p>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button onClick={() => navigate(`/products/${p.productID}`)} style={detailsBtn}>
-                Details
-              </button>
+      <div style={{ padding: 20 }}>
+        <h2 style={{ color: '#0f0', marginBottom: 16 }}>Products</h2>
+        
 
-              <a
-                href={`${process.env.REACT_APP_API_URL || 'http://localhost:5099'}/api/products/${p.productID}/pdf`}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                style={pdfBtn}
-                onClick={(e) => e.stopPropagation()}
-              >
-                PDF
-              </a>
+        <div style={filterBar}>
+
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={searchInput}
+          />
+          <select
+            value={filterMaterial}
+            onChange={e => setFilterMaterial(e.target.value)}
+            style={filterSelect}
+          >
+            <option value="">All Materials</option>
+            {materials.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select
+            value={filterColor}
+            onChange={e => setFilterColor(e.target.value)}
+            style={filterSelect}
+          >
+            <option value="">All Colors</option>
+            {colors.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <button onClick={() => navigate('/products/new')} style={newBtn}>New Product</button>
+        </div>
+
+        <div style={grid}>
+          {filteredProducts.map(p => (
+            <div key={p.productID} style={card}>
+              <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 16,
+                  padding: '4px 0',           // tiny buffer top/bottom
+                }}>
+                  {/* Left — Part Number */}
+                  <div style={{
+                    color: '#0f0',
+                    fontSize: '1.5rem',
+                    fontWeight: 'bold',
+                    margin: 0,
+                    padding: 0,
+                    letterSpacing: '0.5px'
+                  }}>
+                    {p.partNumber}
+                  </div>
+
+                  {/* Right — Button */}
+                  <button
+                    onClick={() => navigate(`/products/${p.productID}`)}
+                    style={{
+                      ...detailsBtn,
+                      whiteSpace: 'nowrap',     // prevents button text wrap
+                    }}
+                  >
+                    Details →
+                  </button>
+                </div>
+
+              <p>{p.partName}</p>
+              <p><strong>Material:</strong> {p.material?.name || 'None'}</p>
+              <p><strong>Color:</strong> {p.colorant?.name || 'None'}</p>
+              <p><strong>Mold:</strong> {p.moldInsert?.fullNumber || 'None'}</p>
+              <p><strong>Full Box Qty:</strong> {p.fullBoxQty || '0'}</p>
+              <p><strong>Box Size:</strong> {p.boxSize || '—'}</p>
+              <p><strong>Bin ID:</strong> {p.binId || '—'}</p>
 
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
 export default ProductList;
 
-// Styles remain the same
 
 const filterBar: React.CSSProperties = {
   display: 'flex',
