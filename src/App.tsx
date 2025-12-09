@@ -399,7 +399,6 @@ function AppContent({
               />
 
               <Route path="/machines" element={<MachineList />} />
-              <Route path="/machines/new" element={<MachineForm />} />
               <Route path="/machines/:id" element={<MachineForm />} />
 
               <Route path="/settings" element={<UserSettings />} />

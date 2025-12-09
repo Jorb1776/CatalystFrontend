@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axios from "../axios";
 import toast from "react-hot-toast";
 import { useCurrentInitials } from "../hooks/useCurrentInitials";
 
@@ -7,6 +7,13 @@ interface StartWithPressDataModalProps {
   workOrderId: number;
   onClose: () => void;
   onSuccess: () => void;
+}
+
+interface Machine {
+  id: number;
+  machineID: string;
+  name: string;
+  status: string;
 }
 
 interface PressData {
@@ -46,6 +53,24 @@ export const StartWithPressDataModal = ({
   const [loading, setLoading] = useState(false);
   const [previewData, setPreviewData] = useState<PressData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [loadingMachines, setLoadingMachines] = useState(true);
+
+  // Load machines on mount
+  useEffect(() => {
+    const loadMachines = async () => {
+      try {
+        const res = await axios.get<Machine[]>("/api/machines");
+        setMachines(res.data);
+      } catch (err) {
+        console.error("Failed to load machines:", err);
+        toast.error("Failed to load machines");
+      } finally {
+        setLoadingMachines(false);
+      }
+    };
+    loadMachines();
+  }, []);
 
   // Update operatorInitials when defaultInitials changes (after localStorage loads)
   useEffect(() => {
@@ -327,14 +352,13 @@ export const StartWithPressDataModal = ({
                     marginBottom: 6,
                   }}
                 >
-                  Press Number *
+                  Machine *
                 </label>
-                <input
-                  type="text"
+                <select
                   value={pressNumber}
                   onChange={(e) => setPressNumber(e.target.value)}
-                  placeholder="Enter press number"
                   autoFocus
+                  disabled={loadingMachines}
                   style={{
                     width: "100%",
                     padding: 10,
@@ -343,8 +367,22 @@ export const StartWithPressDataModal = ({
                     borderRadius: 6,
                     color: "#fff",
                     fontSize: "0.9rem",
+                    cursor: loadingMachines ? "wait" : "pointer",
                   }}
-                />
+                >
+                  <option value="" style={{ background: "#000", color: "#888" }}>
+                    {loadingMachines ? "Loading machines..." : "Select a machine"}
+                  </option>
+                  {machines.map((machine) => (
+                    <option
+                      key={machine.id}
+                      value={machine.machineID}
+                      style={{ background: "#000", color: "#fff" }}
+                    >
+                      {machine.machineID} - {machine.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div style={{ flex: 1 }}>
                 <label
