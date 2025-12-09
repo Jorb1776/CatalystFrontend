@@ -11,7 +11,6 @@ export interface MoldInsert {
 export interface Mold {
   moldID: number;
   baseNumber: string;
-  cavityCount: number;
   materialCompatibility?: string;
   maintenanceSchedule: string;
 }

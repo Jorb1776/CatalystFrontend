@@ -102,8 +102,8 @@ export default function ToolPicturesGallery() {
         cssText: `
           all: unset !important;
           display: block !important;
-          max-width: 90vw !important;
-          max-height: 90vh !important;
+          width: 100% !important;
+
 
           height: 100%  !important;
           object-fit: contain !important;

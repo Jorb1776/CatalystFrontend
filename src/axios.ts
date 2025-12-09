@@ -1,26 +1,32 @@
 import axios from 'axios';
 import { RefreshResponse } from './types/Auth';
 
-const API_URL = process.env.REACT_APP_API_URL;
+// In development, use empty baseURL to let proxy handle routing
+// In production, use the full API URL
+const API_URL = process.env.NODE_ENV === 'production'
+  ? (process.env.REACT_APP_API_URL || window.location.origin)
+  : '';
 
 const api = axios.create({
   baseURL: API_URL,
   timeout: 10000,
-  //withCredentials: true,
 });
 
 // Request interceptor
 api.defaults.withCredentials = true;
 api.interceptors.request.use((config: any) => {
-  
+
   const token = localStorage.getItem('token');
-  const isPublicEndpoint = 
-    config.method?.toLowerCase() === 'get' && 
+  const isPublicEndpoint =
+    config.method?.toLowerCase() === 'get' &&
     /^\/api\/products(\/\d+)?$/.test(config.url || '');
 
   if (token && !isPublicEndpoint) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
+    console.log(`[AXIOS] Adding auth to ${config.method?.toUpperCase()} ${config.url}`);
+  } else if (!token && !isPublicEndpoint) {
+    console.warn(`[AXIOS] No token found for ${config.method?.toUpperCase()} ${config.url}`);
   }
   return config;
 });

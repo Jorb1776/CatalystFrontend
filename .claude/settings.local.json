@@ -5,7 +5,22 @@
       "Bash(git -C \"C:\\Users\\jorda\\catalyst-gui\" log --all --name-only --pretty=format:)",
       "Bash(git -C \"C:\\Users\\jorda\\catalyst-gui\" log --all --oneline)",
       "Bash(git -C \"C:\\Users\\jorda\\catalyst-gui\" config --file .gitmodules --get-regexp path)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(curl:*)",
+      "Bash(dotnet ef migrations add:*)",
+      "Bash(dotnet ef database update:*)",
+      "Bash(dotnet build:*)",
+      "Bash(npm install:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(dir:*)",
+      "Bash(Select-String -Pattern \"error|warning|succeeded|failed\")",
+      "Bash(Select-Object -First 20)",
+      "Bash(xcopy:*)",
+      "Bash(copy:*)",
+      "Bash(Select-String:*)",
+      "Bash(Select-Object -First 10)",
+      "Bash(Select-Object -First 3)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

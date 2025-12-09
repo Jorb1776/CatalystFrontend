@@ -3,6 +3,7 @@ import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signal
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5099';
 let connection: HubConnection | null = null;
 
+
 export async function startSignalR(): Promise<HubConnection> {
   if (connection) return connection;
 
@@ -10,6 +11,7 @@ export async function startSignalR(): Promise<HubConnection> {
   if (!token) throw new Error('No token');
 
   console.log('Starting SignalR...');
+
   connection = new HubConnectionBuilder()
     .withUrl(`${API_URL}/hubs/floor`, {
       accessTokenFactory: () => token
@@ -19,7 +21,10 @@ export async function startSignalR(): Promise<HubConnection> {
     .build();
 
   await connection.start();
-  console.log('SignalR Connected');
+
+  console.log('SignalR state:', connection.state); // "Connected"
+  connection.onclose(error => console.log('SignalR closed', error));
+
   return connection;
 }
 
