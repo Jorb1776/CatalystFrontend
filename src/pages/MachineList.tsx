@@ -20,7 +20,12 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
+import { useLocation, LOCATIONS } from "../context/AuthContext";
 import SearchIcon from "@mui/icons-material/Search";
 import DeleteIcon from "@mui/icons-material/Delete";
 
@@ -47,9 +52,11 @@ interface Machine {
 
 export default function MachineList() {
   const navigate = useNavigate();
+  const { location: currentLocation, setLocation } = useLocation();
   const [machines, setMachines] = useState<Machine[]>([]);
   const [filteredMachines, setFilteredMachines] = useState<Machine[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [locationFilter, setLocationFilter] = useState(currentLocation || "All");
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [machineToDelete, setMachineToDelete] = useState<Machine | null>(null);
@@ -59,20 +66,30 @@ export default function MachineList() {
   }, []);
 
   useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredMachines(machines);
-    } else {
-      const query = searchQuery.toLowerCase();
-      setFilteredMachines(
-        machines.filter(
-          (m) =>
-            m.machineID.toLowerCase().includes(query) ||
-            m.name.toLowerCase().includes(query) ||
-            m.status.toLowerCase().includes(query)
-        )
+    let result = machines;
+
+    // Filter by location
+    if (locationFilter && locationFilter !== "All") {
+      result = result.filter(
+        (m) =>
+          m.machineID.toUpperCase().startsWith(locationFilter.toUpperCase() + "-") ||
+          m.machineID.toUpperCase().startsWith(locationFilter.toUpperCase())
       );
     }
-  }, [searchQuery, machines]);
+
+    // Filter by search query
+    if (searchQuery.trim() !== "") {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (m) =>
+          m.machineID.toLowerCase().includes(query) ||
+          m.name.toLowerCase().includes(query) ||
+          m.status.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredMachines(result);
+  }, [searchQuery, machines, locationFilter]);
 
   const loadMachines = async () => {
     try {
@@ -148,29 +165,55 @@ export default function MachineList() {
         </Button>
       </Box>
 
-      <TextField
-        fullWidth
-        placeholder="Search by Machine ID, Name, or Status..."
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        sx={{
-          mb: 3,
-          "& .MuiOutlinedInput-root": {
-            color: "#fff",
-            backgroundColor: "#111",
-            "& fieldset": { borderColor: "#0f0" },
-            "&:hover fieldset": { borderColor: "#0f0" },
-            "&.Mui-focused fieldset": { borderColor: "#0f0" },
-          },
-        }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon sx={{ color: "#0f0" }} />
-            </InputAdornment>
-          ),
-        }}
-      />
+      <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+        <TextField
+          fullWidth
+          placeholder="Search by Machine ID, Name, or Status..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              color: "#fff",
+              backgroundColor: "#111",
+              "& fieldset": { borderColor: "#0f0" },
+              "&:hover fieldset": { borderColor: "#0f0" },
+              "&.Mui-focused fieldset": { borderColor: "#0f0" },
+            },
+          }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: "#0f0" }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <FormControl sx={{ minWidth: 150 }}>
+          <InputLabel sx={{ color: "#0f0" }}>Location</InputLabel>
+          <Select
+            value={locationFilter}
+            label="Location"
+            onChange={(e) => {
+              setLocationFilter(e.target.value);
+              setLocation(e.target.value);
+            }}
+            sx={{
+              color: "#fff",
+              backgroundColor: "#111",
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#0f0" },
+              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#0f0" },
+              "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#0f0" },
+              "& .MuiSvgIcon-root": { color: "#0f0" },
+            }}
+          >
+            {LOCATIONS.map((loc) => (
+              <MenuItem key={loc} value={loc}>
+                {loc === "All" ? "All Locations" : loc}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
 
       <TableContainer component={Paper} sx={{ bgcolor: "#1a1a1a" }}>
         <Table>

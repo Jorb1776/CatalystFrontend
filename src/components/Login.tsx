@@ -1,45 +1,31 @@
 import React, { useState } from "react";
-import axios from "../axios";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
-import { LoginResponse } from "../types/Auth";
+import { useAuth } from "../context/AuthContext";
 
-export default function Login({ onLogin }: { onLogin: () => void }) {
+export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [tempUsername, setTempUsername] = useState("");
   const navigate = useNavigate();
+  const { login, verify2FA, isLoading } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      const res = await axios.post<any>("/api/auth/login", {
-        username,
-        password,
-      });
+      const result = await login(username, password);
 
-      // Check if 2FA is required
-      if (res.data.requiresTwoFactor) {
+      if (result.requiresTwoFactor) {
         setRequiresTwoFactor(true);
-        setTempUsername(res.data.username);
+        setTempUsername(result.username || username);
         toast.success("Please enter your 2FA code");
         return;
       }
 
-      // Normal login (no 2FA)
-      const storedUsername = res.data.username || username;
-      const initials = res.data.initials || storedUsername.substring(0, 3).toUpperCase();
-
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("role", res.data.role);
-      localStorage.setItem("username", storedUsername);
-      localStorage.setItem("initials", initials);
-
       toast.success("Logged in!");
-      onLogin();
       navigate("/floor");
     } catch (err: any) {
       toast.error("Invalid credentials");
@@ -55,26 +41,14 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     }
 
     try {
-      const res = await axios.post<LoginResponse>("/api/auth/2fa/verify", {
-        username: tempUsername,
-        code: twoFactorCode,
-      });
-
-      const storedUsername = res.data.username || tempUsername;
-      const initials = res.data.initials || storedUsername.substring(0, 3).toUpperCase();
-
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("role", res.data.role);
-      localStorage.setItem("username", storedUsername);
-      localStorage.setItem("initials", initials);
-
+      await verify2FA(tempUsername, twoFactorCode);
       toast.success("Logged in!");
-      onLogin();
       navigate("/floor");
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Invalid 2FA code");
     }
   };
+
   return (
     <div
       style={{
@@ -100,6 +74,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
             onChange={(e) => setUsername(e.target.value)}
             style={inputStyle}
             autoFocus
+            disabled={isLoading}
           />
           <input
             type="password"
@@ -107,9 +82,10 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             style={inputStyle}
+            disabled={isLoading}
           />
-          <button type="submit" style={btnStyle}>
-            Login
+          <button type="submit" style={btnStyle} disabled={isLoading}>
+            {isLoading ? "Logging in..." : "Login"}
           </button>
         </form>
       ) : (
@@ -136,13 +112,14 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
               }}
               autoFocus
               maxLength={6}
+              disabled={isLoading}
             />
             <button
               type="submit"
               style={btnStyle}
-              disabled={twoFactorCode.length !== 6}
+              disabled={twoFactorCode.length !== 6 || isLoading}
             >
-              Verify
+              {isLoading ? "Verifying..." : "Verify"}
             </button>
             <button
               type="button"
@@ -152,6 +129,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
                 setPassword("");
               }}
               style={{ ...btnStyle, background: "#444", color: "#fff" }}
+              disabled={isLoading}
             >
               Back to Login
             </button>

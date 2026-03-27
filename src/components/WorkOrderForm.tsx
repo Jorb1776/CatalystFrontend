@@ -14,6 +14,16 @@ interface WorkOrderRequest {
   batchQuantity: number;
   material: string;
   orderNote: string;
+  customerId?: number;
+  dueDate?: string;
+}
+
+interface Customer {
+  customerID: number;
+  name: string;
+  email1?: string;
+  email2?: string;
+  email3?: string;
 }
 
 interface WorkOrderFormProps {
@@ -30,10 +40,19 @@ export default function WorkOrderForm({
   const workOrderId = id ? +id : undefined;
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCustom, setIsCustom] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
+
+  // Default due date to 1 month from now
+  const getDefaultDueDate = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    return d.toISOString().split('T')[0];
+  };
 
   const [form, setForm] = useState<WorkOrderRequest>({
     poNumber: "",
@@ -43,6 +62,8 @@ export default function WorkOrderForm({
     batchQuantity: 0,
     material: "",
     orderNote: "",
+    customerId: undefined,
+    dueDate: getDefaultDueDate(),
   });
 
   useEffect(() => {
@@ -50,6 +71,16 @@ export default function WorkOrderForm({
       .get<Product[]>("/api/products")
       .then((r) => setProducts(r.data))
       .catch(() => toast.error("Load failed"));
+
+    axios
+      .get<Customer[]>("/api/customers")
+      .then((r) => {
+        setCustomers(r.data);
+        if (!workOrderId && r.data.length > 0) {
+          setForm((prev) => ({ ...prev, customerId: r.data[0].customerID }));
+        }
+      })
+      .catch(() => console.error("Failed to load customers"));
   }, []);
 
   // Filter products based on search
@@ -63,10 +94,22 @@ export default function WorkOrderForm({
     );
   }, [products, searchTerm]);
 
+  // Auto-select first result when search changes and there are results
+  useEffect(() => {
+    if (searchTerm && filteredProducts.length > 0 && !workOrderId) {
+      // Auto-select the first matching product
+      const firstMatch = filteredProducts[0];
+      if (!selectedProduct || selectedProduct.productID !== firstMatch.productID) {
+        setSelectedProduct(firstMatch);
+        setIsCustom(false);
+      }
+    }
+  }, [searchTerm, filteredProducts, workOrderId]);
+
   useEffect(() => {
     if (workOrderId) {
       axios
-        .get<WorkOrderRequest>(`/api/workorder/${workOrderId}`)
+        .get<any>(`/api/workorder/${workOrderId}`)
         .then((r) => {
           const data = r.data;
           setForm({
@@ -74,9 +117,10 @@ export default function WorkOrderForm({
             partNumber: data.partNumber || "",
             description: data.description || "",
             moldNumber: data.moldNumber || "",
-            batchQuantity: data.batchQuantity || 0,
+            batchQuantity: data.quantity || data.batchQuantity || 0,
             material: data.material || "",
             orderNote: data.orderNote || "",
+            dueDate: data.dueDate ? data.dueDate.split('T')[0] : getDefaultDueDate(),
           });
           setIsCustom(true);
         })
@@ -127,30 +171,99 @@ export default function WorkOrderForm({
         {workOrderId ? "Update Work Order" : "Create Work Order"}
       </h2>
 
-      <div style={field}>
-        <label>Search Product</label>
-        <input
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={inputStyle}
-        />
-        <select
-          value={selectedProduct?.productID || ""}
-          onChange={(e) => {
-            const p = products.find((x) => x.productID === +e.target.value);
-            setSelectedProduct(p || null);
-            setSearchTerm("");
-            setIsCustom(false);
-          }}
-          style={{ ...selectStyle, marginTop: 8 }}
-          size={5}
-        >
-          {filteredProducts.map((p) => (
-            <option key={p.productID} value={p.productID}>
-              {p.partNumber} - {p.partName}
-            </option>
-          ))}
-        </select>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+        <div style={{ ...field, flex: 1 }}>
+          <label>Search Product</label>
+          <input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={inputStyle}
+          />
+          <select
+            value={selectedProduct?.productID || ""}
+            onChange={(e) => {
+              const p = products.find((x) => x.productID === +e.target.value);
+              setSelectedProduct(p || null);
+              setSearchTerm("");
+              setIsCustom(false);
+            }}
+            style={{ ...selectStyle, marginTop: 8 }}
+            size={5}
+          >
+            {filteredProducts.map((p) => (
+              <option key={p.productID} value={p.productID}>
+                {p.partNumber} - {p.partName}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Part Image Preview */}
+        {selectedProduct && (
+          <div
+            style={{
+              width: 150,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 24,
+            }}
+          >
+            <div style={{ position: "relative", flexShrink: 0, width: "100%" }}>
+              <img
+                src={`/PartImages/${selectedProduct.partNumber}.jpg`}
+                onError={(e) =>
+                  (e.currentTarget.src = "/PartImages/placeholder.jpg")
+                }
+                onClick={() => setShowLightbox(true)}
+                style={{
+                  width: "100%",
+                  height: 120,
+                  objectFit: "contain",
+                  borderRadius: 6,
+                  border: "2px solid #0f0",
+                  cursor: "zoom-in",
+                }}
+                alt="Part"
+              />
+              {/* zoom overlay */}
+              <div
+                onClick={() => setShowLightbox(true)}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(0,0,0,0.4)",
+                  borderRadius: 6,
+                  opacity: 0,
+                  transition: "opacity 0.2s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "0")}
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#0f0"
+                  strokeWidth="2.5"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  <line x1="11" y1="8" x2="11" y2="14" />
+                  <line x1="8" y1="11" x2="14" y2="11" />
+                </svg>
+              </div>
+            </div>
+            <span style={{ color: "#888", fontSize: "0.75rem", textAlign: "center" }}>
+              {selectedProduct.partNumber}
+            </span>
+          </div>
+        )}
       </div>
 
       <div style={field}>
@@ -165,6 +278,39 @@ export default function WorkOrderForm({
       </div>
 
       <div style={grid}>
+        <div style={field}>
+          <label>PO Number</label>
+          <input
+            value={form.poNumber}
+            onChange={(e) => setForm({ ...form, poNumber: e.target.value })}
+            placeholder="Enter PO number"
+            style={inputStyle}
+          />
+        </div>
+        <div style={field}>
+          <label>Customer</label>
+          <select
+            value={form.customerId || ""}
+            onChange={(e) => setForm({ ...form, customerId: e.target.value ? +e.target.value : undefined })}
+            style={inputStyle}
+          >
+            <option value="">-- Select Customer --</option>
+            {customers.map((c) => (
+              <option key={c.customerID} value={c.customerID}>
+                {c.name} {c.email1 ? `(${c.email1})` : "(no email)"}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={field}>
+          <label>Expected Due Date</label>
+          <input
+            type="date"
+            value={form.dueDate || ""}
+            onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+            style={inputStyle}
+          />
+        </div>
         <div style={field}>
           <label>Part Number *</label>
           <input
@@ -306,6 +452,38 @@ export default function WorkOrderForm({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Image Lightbox */}
+      {showLightbox && selectedProduct && (
+        <div
+          onClick={() => setShowLightbox(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.95)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "zoom-out",
+          }}
+        >
+          <img
+            src={`/PartImages/${selectedProduct.partNumber}.jpg`}
+            onError={(e) =>
+              (e.currentTarget.src = "/PartImages/placeholder.jpg")
+            }
+            style={{
+              maxWidth: "90vw",
+              maxHeight: "90vh",
+              objectFit: "contain",
+              border: "3px solid #0f0",
+              borderRadius: 8,
+            }}
+            alt="Part enlarged"
+          />
         </div>
       )}
     </form>

@@ -4,7 +4,7 @@ import axios from "../axios";
 import { getConnection, startSignalR } from "../signalr";
 import { useNavigate } from "react-router-dom";
 import { WorkOrderCard } from "./WorkOrderCard";
-import { useUserRole, canCreate } from "../hooks/useUserRole";
+import { useUserRole, canCreate, useLocation } from "../context/AuthContext";
 import { usePersistedSearch } from "../hooks/usePersistedSearch";
 
 interface ApiWorkOrder {
@@ -38,6 +38,7 @@ export default function FloorDashboard() {
   const [floorSearch, setFloorSearch] = usePersistedSearch('floorSearch');
   const [completedSearch, setCompletedSearch] = usePersistedSearch('completedSearch');
   const [pendingCount, setPendingCount] = useState(0);
+  const { location: locationFilter } = useLocation();
   const userRole = useUserRole();
 
   const loadPendingCount = async () => {
@@ -77,20 +78,25 @@ export default function FloorDashboard() {
       return new Date(b.endDate).getTime() - new Date(a.endDate).getTime();
     });
 
+  const loadWorkOrders = async () => {
+    try {
+      const params = locationFilter && locationFilter !== 'All' ? `?location=${locationFilter}` : '';
+      const res = await axios.get<WorkOrder[]>(`/api/workorder${params}`);
+      setWorkOrders(res.data);
+      setLoading(false);
+    } catch (err) {
+      setError("Load failed");
+      setLoading(false);
+    }
+  };
+
+  // Load work orders on mount and when location filter changes
   useEffect(() => {
-    const loadWorkOrders = async () => {
-      try {
-        const res = await axios.get<WorkOrder[]>("/api/workorder");
-        setWorkOrders(res.data);
-        setLoading(false);
-      } catch (err) {
-        setError("Load failed");
-        setLoading(false);
-      }
-    };
-
     loadWorkOrders();
+  }, [locationFilter]);
 
+  // Initialize SignalR once on mount
+  useEffect(() => {
     const initSignalR = async () => {
       try {
         const conn = await startSignalR();
@@ -168,20 +174,36 @@ export default function FloorDashboard() {
         </button>
 
         {canCreate(userRole) && (
-          <button
-            onClick={() => navigate("/workorder/new")}
-            style={{
-              background: "#0f0",
-              color: "#111",
-              padding: "8px 16px",
-              borderRadius: 8,
-              border: "none",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}
-          >
-            + New Work Order
-          </button>
+          <>
+            <button
+              onClick={() => navigate("/workorder/new")}
+              style={{
+                background: "#0f0",
+                color: "#111",
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "none",
+                cursor: "pointer",
+                fontWeight: "bold",
+              }}
+            >
+              + New Work Order
+            </button>
+            <button
+              onClick={() => navigate("/workorder/bulk")}
+              style={{
+                background: "#111",
+                color: "#0f0",
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "2px solid #0f0",
+                cursor: "pointer",
+                fontWeight: "bold",
+              }}
+            >
+              + Bulk Entry
+            </button>
+          </>
         )}
 
         {/* <button

@@ -18,8 +18,12 @@ api.interceptors.request.use((config: any) => {
 
   const token = localStorage.getItem('token');
   const isPublicEndpoint =
-    config.method?.toLowerCase() === 'get' &&
-    /^\/api\/products(\/\d+)?$/.test(config.url || '');
+    (config.method?.toLowerCase() === 'get' &&
+    /^\/api\/products(\/\d+)?$/.test(config.url || '')) ||
+    config.url?.includes('/api/auth/login') ||
+    config.url?.includes('/api/auth/refresh') ||
+    config.url?.includes('/api/auth/2fa') ||
+    config.url?.includes('/api/ping');
 
   if (token && !isPublicEndpoint) {
     config.headers = config.headers || {};
@@ -37,7 +41,12 @@ api.interceptors.response.use(
   async error => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't retry if already retried, or if this IS the refresh endpoint, or if it's the login endpoint
+    const isAuthEndpoint = originalRequest.url?.includes('/api/auth/login') ||
+                          originalRequest.url?.includes('/api/auth/refresh') ||
+                          originalRequest.url?.includes('/api/auth/2fa');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {
@@ -48,6 +57,7 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${token}`;
         return api(originalRequest);
       } catch {
+        // Clear all auth data and redirect to login
         localStorage.clear();
         window.location.href = '/login';
         return Promise.reject(error);

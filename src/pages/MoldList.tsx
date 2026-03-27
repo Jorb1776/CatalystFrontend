@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import axios from "../axios";
 import { Link, useNavigate } from "react-router-dom";
 import { usePersistedSearch } from "../hooks/usePersistedSearch";
+import { useLocation } from "../context/AuthContext";
 
 interface Mold {
   moldID: number;
@@ -14,11 +15,13 @@ interface Mold {
 const MoldList = () => {
   const [molds, setMolds] = useState<Mold[]>([]);
   const [search, setSearch] = usePersistedSearch("moldSearch");
+  const { location: globalLocation } = useLocation();
   const navigate = useNavigate();
 
   const loadMolds = async () => {
     try {
-      const res = await axios.get<Mold[]>("/api/molds"); // ← lowercase if backend expects it
+      const params = globalLocation && globalLocation !== 'All' ? `?location=${globalLocation}` : "";
+      const res = await axios.get<Mold[]>(`/api/molds${params}`);
       setMolds(res.data);
     } catch (err) {
       console.error(err);
@@ -27,7 +30,7 @@ const MoldList = () => {
 
   useEffect(() => {
     loadMolds();
-  }, []);
+  }, [globalLocation]);
 
   const filteredMolds = molds.filter((m) =>
     m.baseNumber.toLowerCase().includes(search.toLowerCase())
@@ -157,27 +160,7 @@ const MoldList = () => {
                   }}
                 >
                   <Link
-                    to={`/molds/${m.moldID}`}
-                    style={{ flex: 1, minWidth: "120px" }}
-                  >
-                    <button
-                      style={{
-                        width: "100%",
-                        background: "transparent",
-                        color: "#0f0",
-                        border: "1px solid #0f0",
-                        padding: "8px 12px",
-                        borderRadius: 6,
-                        fontSize: "13px",
-                        cursor: "pointer",
-                        fontWeight: 500,
-                      }}
-                    >
-                      Edit
-                    </button>
-                  </Link>
-                  <Link
-                    to={`/molds/${m.moldID}/tool-pictures`}
+                    to={`/molds/${m.moldID}/view`}
                     style={{ flex: 1, minWidth: "120px" }}
                   >
                     <button
@@ -191,6 +174,26 @@ const MoldList = () => {
                         fontSize: "13px",
                         cursor: "pointer",
                         fontWeight: "bold",
+                      }}
+                    >
+                      View
+                    </button>
+                  </Link>
+                  <Link
+                    to={`/molds/${m.moldID}/tool-pictures`}
+                    style={{ flex: 1, minWidth: "120px" }}
+                  >
+                    <button
+                      style={{
+                        width: "100%",
+                        background: "transparent",
+                        color: "#0f0",
+                        border: "1px solid #0f0",
+                        padding: "8px 12px",
+                        borderRadius: 6,
+                        fontSize: "13px",
+                        cursor: "pointer",
+                        fontWeight: 500,
                       }}
                     >
                       Tool Photos

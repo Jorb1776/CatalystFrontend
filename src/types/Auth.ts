@@ -5,6 +5,7 @@ export interface LoginResponse {
   token: string;
   refreshToken: string;
   role: string;
+  defaultLocation?: string;
 }
 
 export interface RefreshResponse {

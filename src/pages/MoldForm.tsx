@@ -9,6 +9,8 @@ interface Mold {
   baseNumber: string;
   materialCompatibility: string;
   maintenanceSchedule: string;
+  shelfLocation: string;
+  physicalLocation: string;
 }
 
 const MoldForm = ({ onSuccess }: { onSuccess: () => void }) => {
@@ -20,6 +22,8 @@ const MoldForm = ({ onSuccess }: { onSuccess: () => void }) => {
     baseNumber: "",
     materialCompatibility: "",
     maintenanceSchedule: new Date().toISOString().slice(0, 16),
+    shelfLocation: "",
+    physicalLocation: "IN",
   });
 
   const [photos, setPhotos] = useState<string[]>([]);
@@ -48,6 +52,8 @@ const MoldForm = ({ onSuccess }: { onSuccess: () => void }) => {
             maintenanceSchedule: new Date(m.maintenanceSchedule)
               .toISOString()
               .slice(0, 16),
+            shelfLocation: m.shelfLocation || "",
+            physicalLocation: m.physicalLocation || "IN",
           });
         })
         .catch(() => {
@@ -110,6 +116,31 @@ const MoldForm = ({ onSuccess }: { onSuccess: () => void }) => {
             required
             style={inputStyle}
           />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+          <div style={field}>
+            <label style={labelStyle}>Shelf Location</label>
+            <input
+              name="shelfLocation"
+              value={formData.shelfLocation}
+              onChange={handleChange}
+              placeholder="e.g. A-2-3"
+              style={inputStyle}
+            />
+          </div>
+          <div style={field}>
+            <label style={labelStyle}>Physical Location</label>
+            <select
+              name="physicalLocation"
+              value={formData.physicalLocation}
+              onChange={(e) => setFormData({ ...formData, physicalLocation: e.target.value })}
+              style={inputStyle}
+            >
+              <option value="IN">IN - Indiana</option>
+              <option value="TN">TN - Tennessee</option>
+            </select>
+          </div>
         </div>
 
         {isEdit && id && (

@@ -1,4 +1,13 @@
 // src/types/Product.ts
+export interface Mold {
+  moldID: number;
+  baseNumber: string;
+  materialCompatibility?: string;
+  maintenanceSchedule: string;
+  shelfLocation?: string;
+  physicalLocation?: string;
+}
+
 export interface MoldInsert {
   moldInsertId: number;
   moldId: number;
@@ -6,13 +15,8 @@ export interface MoldInsert {
   colorCode: string;
   fullNumber: string;
   baseNumber: string;
-}
-
-export interface Mold {
-  moldID: number;
-  baseNumber: string;
-  materialCompatibility?: string;
-  maintenanceSchedule: string;
+  insertLocation?: string;
+  mold?: Mold;
 }
 
 export interface Product {

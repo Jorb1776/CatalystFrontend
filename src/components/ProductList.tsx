@@ -4,13 +4,13 @@ import axios from "../axios";
 import { Product } from "../types/Product";
 import toast from "react-hot-toast";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { useUserRole, canCreate, canEdit, canDelete } from "../hooks/useUserRole";
+import { useUserRole, canCreate, canEdit, canDelete, useLocation } from "../context/AuthContext";
 import { usePersistedSearch } from "../hooks/usePersistedSearch";
 
 interface ProductListProps {
   products: Product[];
   onDelete?: () => void;
-  refreshProducts: () => void;
+  refreshProducts: (location?: string) => void;
 }
 
 const ProductList: React.FC<ProductListProps> = ({
@@ -22,8 +22,15 @@ const ProductList: React.FC<ProductListProps> = ({
   const [search, setSearch] = usePersistedSearch('productSearch');
   const [filterMaterial, setFilterMaterial] = usePersistedSearch('productMaterial');
   const [filterColor, setFilterColor] = usePersistedSearch('productColor');
+  const { location: globalLocation } = useLocation();
   const [showBackToTop, setShowBackToTop] = useState(false);
   const userRole = useUserRole();
+
+  // Reload products when global location filter changes
+  useEffect(() => {
+    const loc = globalLocation && globalLocation !== 'All' ? globalLocation : undefined;
+    refreshProducts(loc);
+  }, [globalLocation]);
 
   // Confirm state
   const [confirmOpen, setConfirmOpen] = useState(false);

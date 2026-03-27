@@ -11,7 +11,11 @@ import {
   Paper,
   Divider,
   CircularProgress,
-  Alert
+  Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -25,6 +29,7 @@ interface UserStatusResponse {
   username: string;
   role: string;
   twoFactorEnabled: boolean;
+  defaultLocation?: string;
 }
 
 export default function UserSettings() {
@@ -42,6 +47,9 @@ export default function UserSettings() {
   const [verificationCode, setVerificationCode] = useState('');
   const [disablePassword, setDisablePassword] = useState('');
 
+  // Preferences State
+  const [defaultLocation, setDefaultLocation] = useState('All');
+
   useEffect(() => {
     loadUserStatus();
   }, []);
@@ -50,8 +58,24 @@ export default function UserSettings() {
     try {
       const res = await axios.get<UserStatusResponse>('/api/users/me');
       setTwoFactorEnabled(res.data.twoFactorEnabled || false);
+      setDefaultLocation(res.data.defaultLocation || 'All');
     } catch (err) {
       console.error('Failed to load user status', err);
+    }
+  };
+
+  const handleLocationChange = async (newLocation: string) => {
+    try {
+      setLoading(true);
+      await axios.put('/api/users/me/preferences', { defaultLocation: newLocation });
+      setDefaultLocation(newLocation);
+      // Also update session storage so it takes effect immediately
+      sessionStorage.setItem('selectedLocation', newLocation);
+      toast.success('Default location updated');
+    } catch (err) {
+      toast.error('Failed to update location preference');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -207,6 +231,38 @@ export default function UserSettings() {
             {loading ? <CircularProgress size={24} /> : 'Change Password'}
           </Button>
         </form>
+      </Paper>
+
+      {/* Location Preference Section */}
+      <Paper elevation={3} sx={{ p: 4, mb: 4, bgcolor: '#1a1a1a', color: '#fff' }}>
+        <Typography variant="h5" fontWeight="bold" gutterBottom sx={{ color: '#0f0' }}>
+          Default Location
+        </Typography>
+        <Divider sx={{ mb: 3, borderColor: '#333' }} />
+
+        <Typography variant="body1" sx={{ mb: 3, color: '#aaa' }}>
+          Choose which location to load by default when you log in. This setting determines which work orders are shown on the floor dashboard.
+        </Typography>
+
+        <FormControl sx={{ minWidth: 200 }}>
+          <InputLabel sx={{ color: '#aaa' }}>Default Location</InputLabel>
+          <Select
+            value={defaultLocation}
+            label="Default Location"
+            onChange={(e) => handleLocationChange(e.target.value)}
+            disabled={loading}
+            sx={{
+              color: '#fff',
+              '.MuiOutlinedInput-notchedOutline': { borderColor: '#444' },
+              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#0f0' },
+              '.MuiSvgIcon-root': { color: '#0f0' }
+            }}
+          >
+            <MenuItem value="All">All Locations</MenuItem>
+            <MenuItem value="IN">Indiana (IN)</MenuItem>
+            <MenuItem value="TN">Tennessee (TN)</MenuItem>
+          </Select>
+        </FormControl>
       </Paper>
 
       {/* Two-Factor Authentication Section */}

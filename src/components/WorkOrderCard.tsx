@@ -1,12 +1,13 @@
 // src/components/WorkOrderCard.tsx - Simplified floor dashboard cards
 import { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import axios from "../axios";
 import { getStatusColor } from "../utils/statusColors";
 import toast from "react-hot-toast";
 import { red } from "@mui/material/colors";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { StartWithPressDataModal } from "./StartWithPressDataModal";
-import { useUserRole, canEdit } from "../hooks/useUserRole";
+import { PrintLabelModal } from "./PrintLabelModal";
+import { useUserRole, canEdit } from "../context/AuthContext";
 
 interface WorkOrder {
   workOrderId: number;
@@ -33,6 +34,7 @@ interface WorkOrderCardProps {
 export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
   const [showLightbox, setShowLightbox] = useState(false);
   const [showPressDataModal, setShowPressDataModal] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
   const [hasQsi, setHasQsi] = useState<boolean | null>(null);
   const [actualQty, setActualQty] = useState<string>("");
   const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
@@ -417,6 +419,29 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
               </>
             )}
 
+            {/* Print Labels button - show for Active or Done orders */}
+            {(wo.status === "Active" || wo.status === "FirstPiecePending" || wo.status === "Done") && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowPrintModal(true);
+                }}
+                style={{
+                  ...btnStyle("#6b21a8", "#fff"),
+                  gridColumn: wo.status === "Done" ? "1 / -1" : "auto",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.boxShadow = "0 0 15px #a855f7")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.boxShadow = "none")
+                }
+                title="Print product labels"
+              >
+                🏷️ PRINT LABELS
+              </button>
+            )}
+
             {wo.status === "New" && !isReadOnly && (
               <button
                 onClick={(e) => {
@@ -443,10 +468,25 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
             {["FirstPiecePending", "Active"].includes(wo.status) &&
               !isReadOnly && (
                 <>
+                  <button
+                    onClick={handleUndoStart}
+                    style={{
+                      ...btnStyle("#ffe600ff", "#000000ff"),
+                      gridColumn: "1 / -1",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.boxShadow = "0 0 15px #fff")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.boxShadow = "none")
+                    }
+                  >
+                    UNDO START
+                  </button>
                   <input
                     type="number"
                     min="0"
-                    placeholder="Actual"
+                    placeholder="Actual Qty"
                     value={actualQty}
                     onChange={(e) => setActualQty(e.target.value)}
                     onKeyPress={handleKeyPress}
@@ -455,6 +495,7 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
                       border: "solid thin #0f0",
                       fontSize: "0.85rem",
                       minHeight: 36,
+                      gridColumn: "1 / -1",
                     }}
                     onClick={(e) => e.stopPropagation()}
                   />
@@ -468,6 +509,7 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
                         !actualQty || parseInt(actualQty) <= 0
                           ? "not-allowed"
                           : "pointer",
+                      gridColumn: "1 / -1",
                     }}
                     onMouseEnter={(e) =>
                       !e.currentTarget.disabled &&
@@ -478,22 +520,6 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
                     }
                   >
                     FINISH
-                  </button>
-                  <button
-                    onClick={handleUndoStart}
-                    style={{
-                      ...btnStyle("#ffe600ff", "#000000ff"),
-                      gridColumn: "1 / -1",
-                      marginTop: 6,
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.boxShadow = "0 0 15px #fff")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.boxShadow = "none")
-                    }
-                  >
-                    UNDO START
                   </button>
                 </>
               )}
@@ -588,6 +614,15 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
           onSuccess={() => {
             setShowPressDataModal(false);
           }}
+        />
+      )}
+
+      {showPrintModal && (
+        <PrintLabelModal
+          workOrderId={wo.workOrderId}
+          partNumber={wo.partNumber}
+          quantity={wo.quantity}
+          onClose={() => setShowPrintModal(false)}
         />
       )}
 

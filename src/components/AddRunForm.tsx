@@ -15,8 +15,7 @@ import {
   Paper,
   Container,
 } from "@mui/material";
-import { useCurrentUser } from "../hooks/useCurrentUser";
-import { useCurrentInitials } from "../hooks/useCurrentInitials";
+import { useCurrentUser, useCurrentInitials } from "../context/AuthContext";
 
 interface AddRunFormProps {
   moldId: number;

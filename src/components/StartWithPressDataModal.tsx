@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "../axios";
 import toast from "react-hot-toast";
-import { useCurrentInitials } from "../hooks/useCurrentInitials";
+import { useAuth, useLocation } from "../context/AuthContext";
 
 interface StartWithPressDataModalProps {
   workOrderId: number;
@@ -18,11 +18,12 @@ interface Machine {
 
 interface PressData {
   message: string;
-  csvFile: string;
-  toolRunId: number;
+  csvFile: string | null;
+  toolRunId: number | null;
   runNumber: number;
   parsedData: any;
   rawValues: Record<string, string>;
+  hasPressData: boolean;
   productInfo: {
     resinName?: string;
     colorantName?: string;
@@ -30,21 +31,26 @@ interface PressData {
   };
 }
 
+interface NoDataResponse {
+  message: string;
+  canSkip: boolean;
+  moldNumber: string;
+  pressNumber: string;
+}
+
 export const StartWithPressDataModal = ({
   workOrderId,
   onClose,
   onSuccess,
 }: StartWithPressDataModalProps) => {
-  const storedInitials = useCurrentInitials();
-  const storedUsername = localStorage.getItem("username");
+  const { user } = useAuth();
+  const { location: currentLocation } = useLocation();
 
   // Use stored initials, or derive from username, or fallback to OPR
   const defaultInitials =
-    storedInitials && storedInitials.trim()
-      ? storedInitials.trim().toUpperCase()
-      : // : storedUsername
-        // ? storedUsername.substring(0, 3).toUpperCase()
-        "OPR";
+    user?.initials && user.initials.trim()
+      ? user.initials.trim().toUpperCase()
+      : "OPR";
 
   const [pressNumber, setPressNumber] = useState("");
   const [operatorInitials, setOperatorInitials] = useState(defaultInitials);
@@ -55,13 +61,38 @@ export const StartWithPressDataModal = ({
   const [error, setError] = useState<string | null>(null);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loadingMachines, setLoadingMachines] = useState(true);
+  const [noDataFound, setNoDataFound] = useState<NoDataResponse | null>(null);
+
+  // Natural sort for machine IDs like "IN-1", "IN-2", "IN-10"
+  const naturalSort = (a: Machine, b: Machine) => {
+    const regex = /(\D*)(\d*)/g;
+    const aParts = a.machineID.match(regex) || [];
+    const bParts = b.machineID.match(regex) || [];
+
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+      const aPart = aParts[i] || '';
+      const bPart = bParts[i] || '';
+
+      const aNum = parseInt(aPart, 10);
+      const bNum = parseInt(bPart, 10);
+
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        if (aNum !== bNum) return aNum - bNum;
+      } else {
+        if (aPart !== bPart) return aPart.localeCompare(bPart);
+      }
+    }
+    return 0;
+  };
 
   // Load machines on mount
   useEffect(() => {
     const loadMachines = async () => {
       try {
         const res = await axios.get<Machine[]>("/api/machines");
-        setMachines(res.data);
+        // Sort machines naturally by machineID (IN-1, IN-2, IN-10, etc.)
+        const sorted = [...res.data].sort(naturalSort);
+        setMachines(sorted);
       } catch (err) {
         console.error("Failed to load machines:", err);
         toast.error("Failed to load machines");
@@ -72,12 +103,24 @@ export const StartWithPressDataModal = ({
     loadMachines();
   }, []);
 
+  // Filter machines by current location
+  const filteredMachines = useMemo(() => {
+    if (!currentLocation || currentLocation === 'All') {
+      return machines;
+    }
+    // Filter machines where machineID starts with the location code (e.g., "IN-" or "TN-")
+    return machines.filter(m =>
+      m.machineID.toUpperCase().startsWith(currentLocation.toUpperCase() + '-') ||
+      m.machineID.toUpperCase().startsWith(currentLocation.toUpperCase())
+    );
+  }, [machines, currentLocation]);
+
   // Update operatorInitials when defaultInitials changes (after localStorage loads)
   useEffect(() => {
     setOperatorInitials(defaultInitials);
   }, [defaultInitials]);
 
-  const handleStart = async () => {
+  const handleStart = async (skipPressData = false) => {
     if (!pressNumber.trim()) {
       toast.error("Press number is required");
       return;
@@ -85,12 +128,14 @@ export const StartWithPressDataModal = ({
 
     setLoading(true);
     setError(null);
+    setNoDataFound(null);
 
     const requestData = {
       pressNumber: pressNumber.trim(),
       operatorInitials: operatorInitials.trim() || defaultInitials,
       lotNumber: lotNumber.trim() || undefined,
       notes: notes.trim() || undefined,
+      skipPressData,
     };
 
     try {
@@ -99,13 +144,29 @@ export const StartWithPressDataModal = ({
         requestData
       );
 
-      setPreviewData(response.data);
-      toast.success("Work order started successfully!");
-      setTimeout(() => {
+      toast.success(response.data.hasPressData
+        ? "Work order started with press data!"
+        : "Work order started!");
+
+      // If no press data, close immediately. Otherwise show preview briefly.
+      if (response.data.hasPressData) {
+        setPreviewData(response.data);
+        setTimeout(() => {
+          onSuccess();
+          onClose();
+        }, 1500);
+      } else {
         onSuccess();
         onClose();
-      }, 1500);
+      }
     } catch (err: any) {
+      // Check if this is a "no press data found" response with canSkip option
+      if (err.response?.status === 404 && err.response?.data?.canSkip) {
+        setNoDataFound(err.response.data as NoDataResponse);
+        setLoading(false);
+        return;
+      }
+
       const message =
         err.response?.data?.message ||
         err.message ||
@@ -162,6 +223,35 @@ export const StartWithPressDataModal = ({
     if (!previewData) return null;
 
     const data = previewData.parsedData;
+
+    // If no press data, show a simple success message instead of the parameter preview
+    if (!previewData.hasPressData || !data) {
+      return (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 16,
+            background: "#1a1a1a",
+            borderRadius: 8,
+            border: "1px solid #0f0",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "0.9rem",
+              fontWeight: "bold",
+              color: "#0f0",
+              marginBottom: 8,
+            }}
+          >
+            Work Order Started
+          </div>
+          <div style={{ fontSize: "0.85rem", color: "#888" }}>
+            No press data was imported. The work order is now active.
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div
@@ -340,7 +430,7 @@ export const StartWithPressDataModal = ({
           </div>
         )}
 
-        {!previewData && (
+        {!previewData && !noDataFound && (
           <>
             <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
               <div style={{ flex: 1 }}>
@@ -371,9 +461,9 @@ export const StartWithPressDataModal = ({
                   }}
                 >
                   <option value="" style={{ background: "#000", color: "#888" }}>
-                    {loadingMachines ? "Loading machines..." : "Select a machine"}
+                    {loadingMachines ? "Loading machines..." : `Select a machine${currentLocation && currentLocation !== 'All' ? ` (${currentLocation})` : ''}`}
                   </option>
-                  {machines.map((machine) => (
+                  {filteredMachines.map((machine) => (
                     <option
                       key={machine.id}
                       value={machine.machineID}
@@ -498,7 +588,7 @@ export const StartWithPressDataModal = ({
                 Cancel
               </button>
               <button
-                onClick={handleStart}
+                onClick={() => handleStart(false)}
                 disabled={loading || !pressNumber.trim()}
                 style={{
                   padding: "10px 20px",
@@ -517,6 +607,68 @@ export const StartWithPressDataModal = ({
               </button>
             </div>
           </>
+        )}
+
+        {noDataFound && !previewData && (
+          <div
+            style={{
+              padding: 16,
+              background: "#332200",
+              border: "1px solid #ff9900",
+              borderRadius: 8,
+              marginBottom: 16,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "1rem",
+                fontWeight: "bold",
+                color: "#ff9900",
+                marginBottom: 12,
+              }}
+            >
+              No Press Data Found
+            </div>
+            <div style={{ color: "#ccc", marginBottom: 16, fontSize: "0.9rem" }}>
+              No press data file was found for mold <strong>{noDataFound.moldNumber}</strong> on machine <strong>{noDataFound.pressNumber}</strong>.
+            </div>
+            <div style={{ color: "#888", marginBottom: 16, fontSize: "0.85rem" }}>
+              You can still start this work order without importing press data. The work order will be marked as active but no tool run parameters will be recorded.
+            </div>
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setNoDataFound(null)}
+                style={{
+                  padding: "10px 20px",
+                  background: "#333",
+                  border: "1px solid #555",
+                  borderRadius: 6,
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: "0.9rem",
+                }}
+              >
+                Go Back
+              </button>
+              <button
+                onClick={() => handleStart(true)}
+                disabled={loading}
+                style={{
+                  padding: "10px 20px",
+                  background: "#ff9900",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "#000",
+                  fontWeight: "bold",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  fontSize: "0.9rem",
+                  opacity: loading ? 0.5 : 1,
+                }}
+              >
+                {loading ? "Starting..." : "Start Without Press Data"}
+              </button>
+            </div>
+          </div>
         )}
 
         {renderPreview()}

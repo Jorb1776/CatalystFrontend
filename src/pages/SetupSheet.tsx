@@ -23,7 +23,7 @@ import {
 } from "@mui/material";
 import AddRunForm from "../components/AddRunForm";
 import RunTrendsChart from "../components/RunTrendsChart";
-import { useCurrentInitials } from "../hooks/useCurrentInitials";
+import { useCurrentInitials } from "../context/AuthContext";
 
 interface MoldHeader {
   moldID: number;

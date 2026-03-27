@@ -9,11 +9,6 @@ import {
   Navigate,
   useNavigate,
 } from "react-router-dom";
-import {
-  HubConnection,
-  HubConnectionBuilder,
-  LogLevel,
-} from "@microsoft/signalr";
 
 import "./styles/gantt.css";
 import Login from "./components/Login";
@@ -50,12 +45,15 @@ import ColorantList from "./pages/ColorantList";
 import ColorantForm from "./pages/ColorantForm";
 import AdditiveList from "./pages/AdditiveList";
 import AdditiveForm from "./pages/AdditiveForm";
+import QuoteList from "./pages/QuoteList";
+import QuoteFormNew from "./pages/QuoteFormNew";
 import ToolPicturesGallery from "./pages/ToolPicturesGallery";
 import UniversalBulkUpload from "./pages/UniversalBulkUpload";
 import MoldToolPicturesUpload from "./pages/MoldToolPicturesUpload";
 import MoldInsertPhotosUpload from "./pages/MoldInsertPhotosUpload";
 import MoldToolPicturesGallery from "./pages/MoldToolPicturesGallery";
 import MoldPhotoManager from "./pages/MoldPhotoManager";
+import MoldView from "./pages/MoldView";
 
 import FirstPieceApprovalDashboard from "./pages/FirstPieceApprovalDashboard";
 import PartEngineeringHub from "./pages/PartEngineeringHub";
@@ -64,31 +62,48 @@ import QsiForm from "components/QsiForm";
 import UserSettings from "./pages/UserSettings";
 import SetupSheet from "./pages/SetupSheet";
 import ToolRunDetails from "./pages/ToolRunDetails";
+import ToolPreSampleChecklist from "./pages/ToolPreSampleChecklist";
+import EngineeringPacketChecklist from "./pages/EngineeringPacketChecklist";
+import CustomerList from "./pages/CustomerList";
+import CustomerForm from "./pages/CustomerForm";
+import BulkWorkOrderForm from "./components/BulkWorkOrderForm";
+
+import { AuthProvider, useAuth, LOCATIONS } from "./context/AuthContext";
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    !!localStorage.getItem("token")
+  return (
+    <AuthProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </AuthProvider>
   );
-  const [userRole, setUserRole] = useState(localStorage.getItem("role") || "");
+}
+
+function AppContent() {
+  const { isAuthenticated, user, logout, location, setLocation } = useAuth();
+  const userRole = user?.role || "";
+  const userInitials = user?.initials || "";
+
   const [signalRReady, setSignalRReady] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [boms, setBoms] = useState<Bom[]>([]);
   const [users, setUsers] = useState<User[]>([]);
 
-  // axios.defaults.baseURL = 'https://leevalleymolding.com';
+  const navigate = useNavigate();
+  const [showAdminMenu, setShowAdminMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Refresh functions
   const refresh = () => {
-    // Optional: refetch data or trigger SignalR
     console.log("Work order saved, refreshing floor...");
-    // You can trigger a floor refresh via SignalR if needed
   };
 
-  const refreshProducts = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+  const refreshProducts = async (location?: string) => {
+    if (!isAuthenticated) return;
     try {
-      const res = await axios.get<Product[]>("/api/products");
+      const params = location ? `?location=${location}` : "";
+      const res = await axios.get<Product[]>(`/api/products${params}`);
       setProducts(res.data);
     } catch (err) {
       console.error("Refresh failed:", err);
@@ -96,19 +111,17 @@ function App() {
   };
 
   const refreshBoms = () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!isAuthenticated) return;
     axios
-      .get("/api/BOMs", { headers: { Authorization: `Bearer ${token}` } })
+      .get("/api/BOMs")
       .then((res: any) => setBoms(res.data))
       .catch(console.error);
   };
 
   const refreshUsers = () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!isAuthenticated) return;
     axios
-      .get("/api/users", { headers: { Authorization: `Bearer ${token}` } })
+      .get("/api/users")
       .then((res: any) => setUsers(res.data))
       .catch(console.error);
   };
@@ -122,117 +135,74 @@ function App() {
     }
   }, [isAuthenticated, userRole]);
 
+  // SignalR connection
   useEffect(() => {
     if (isAuthenticated && !getConnection()) {
       startSignalR()
         .then(() => setSignalRReady(true))
         .catch(() => setSignalRReady(false));
     }
+
+    // Cleanup on logout
+    if (!isAuthenticated) {
+      setSignalRReady(false);
+      stopSignalR();
+    }
   }, [isAuthenticated]);
 
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-    setUserRole(localStorage.getItem("role") || "");
-    startSignalR()
-      .then(() => setSignalRReady(true))
-      .catch(() => setSignalRReady(false));
-  };
-
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
-    setIsAuthenticated(false);
-    setUserRole("");
+    logout();
     setSignalRReady(false);
     stopSignalR();
+    navigate("/login");
   };
 
   return (
-    <Router>
-      <AppContent
-        isAuthenticated={isAuthenticated}
-        userRole={userRole}
-        signalRReady={signalRReady}
-        products={products}
-        boms={boms}
-        users={users}
-        refreshProducts={refreshProducts}
-        refreshBoms={refreshBoms}
-        refreshUsers={refreshUsers}
-        handleLogin={handleLogin}
-        handleLogout={handleLogout}
-      />
-    </Router>
-  );
-}
-
-function AppContent({
-  isAuthenticated,
-  userRole,
-  signalRReady,
-  products,
-  boms,
-  users,
-  refreshProducts,
-  refreshBoms,
-  refreshUsers,
-  handleLogin,
-  handleLogout,
-}: {
-  isAuthenticated: boolean;
-  userRole: string;
-  signalRReady: boolean;
-  products: Product[];
-  boms: Bom[];
-  users: User[];
-  refreshProducts: () => void;
-  refreshBoms: () => void;
-  refreshUsers: () => void;
-  handleLogin: () => void;
-  handleLogout: () => void;
-}) {
-  const navigate = useNavigate();
-  const [showAdminMenu, setShowAdminMenu] = useState(false);
-
-  return (
-    <div style={{ background: "#111", color: "#0f0", minHeight: "100vh" }}>
+    <div style={{ background: "#111", color: "#0f0", minHeight: "100vh", overflowX: "hidden", width: "100%", boxSizing: "border-box" }}>
       {isAuthenticated ? (
         <>
           <nav
             style={{
-              padding: "16px",
-              background: "#222",
+              padding: "12px 16px",
+              background: "#000",
+              borderBottom: "2px solid #0f0",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              position: "sticky",
+              top: 0,
+              zIndex: 100,
+              width: "100%",
+              boxSizing: "border-box",
             }}
           >
-            <div>
-              <Link to="/products" style={navLink}>
-                Products
-              </Link>
-              {/* <Link to="/schedules" style={navLink}>Schedules</Link>
-              <Link to="/boms" style={navLink}>BOMs</Link> */}
+            {/* Hamburger Menu - Mobile Only */}
+            <button
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              style={{
+                display: "none",
+                background: "transparent",
+                border: "1px solid #0f0",
+                color: "#0f0",
+                fontSize: "20px",
+                padding: "8px 12px",
+                cursor: "pointer",
+                borderRadius: "4px",
+              }}
+              className="hamburger-btn"
+            >
+              ☰
+            </button>
 
-              <Link to="/floor" style={navLink}>
-                Floor
-              </Link>
-              {/* <Link to="/reports" style={navLink}>Reports</Link> */}
-              <Link to="/molds" style={navLink}>
-                Molds
-              </Link>
-              <Link to="/machines" style={navLink}>
-                Machines
-              </Link>
+            {/* Desktop Menu */}
+            <div className="desktop-menu" style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+              <Link to="/products" style={navLink}>Products</Link>
+              <Link to="/floor" style={navLink}>Floor</Link>
+              <Link to="/molds" style={navLink}>Molds</Link>
+              <Link to="/machines" style={navLink}>Machines</Link>
 
-              {/* <Link to="/gantt" style={navLink}>Gantt</Link> */}
               {userRole === "Admin" && (
-                <div
-                  style={{
-                    position: "relative",
-                    display: "inline-block", // ← THIS is the key
-                  }}
-                >
+                <div style={{ position: "relative", display: "inline-block" }}>
                   <button
                     onClick={() => setShowAdminMenu((prev) => !prev)}
                     style={{
@@ -240,19 +210,14 @@ function AppContent({
                       background: "transparent",
                       border: "none",
                       cursor: "pointer",
-                      padding: "0 16px",
+                      padding: "0 12px",
                       fontWeight: 600,
-                      color: "#0f0",
                       display: "flex",
                       alignItems: "center",
-                      gap: 6,
-                      height: "100%",
+                      gap: 4,
                     }}
                   >
-                    Admin{" "}
-                    <span style={{ fontSize: "0.75em", marginTop: 1 }}>
-                      {showAdminMenu ? "▲" : "▼"}
-                    </span>
+                    Admin <span style={{ fontSize: "0.75em" }}>{showAdminMenu ? "▲" : "▼"}</span>
                   </button>
 
                   {showAdminMenu && (
@@ -261,19 +226,20 @@ function AppContent({
                         position: "absolute",
                         top: "100%",
                         left: 0,
-                        right: 0,
-                        minWidth: 180,
-                        background: "#111",
+                        minWidth: 160,
+                        background: "#000",
                         border: "1px solid #0f0",
-                        borderRadius: 8,
+                        borderRadius: 4,
                         overflow: "hidden",
-                        boxShadow: "0 8px 24px rgba(0, 255, 0, 0.25)",
+                        boxShadow: "0 4px 12px rgba(0, 255, 0, 0.3)",
                         zIndex: 1000,
                         marginTop: 4,
                       }}
                       onMouseLeave={() => setShowAdminMenu(false)}
                     >
                       {[
+                        { to: "/quotes", label: "Quotes" },
+                        { to: "/customers", label: "Customers" },
                         { to: "/upload-bulk", label: "Bulk Upload" },
                         { to: "/inventory", label: "Inventory" },
                         { to: "/users", label: "Users" },
@@ -284,11 +250,11 @@ function AppContent({
                           onClick={() => setShowAdminMenu(false)}
                           style={{
                             display: "block",
-                            padding: "12px 18px",
+                            padding: "10px 16px",
                             color: "#0f0",
                             textDecoration: "none",
                             fontSize: "14px",
-                            transition: "all 0.18s ease",
+                            transition: "all 0.15s ease",
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = "#0f0";
@@ -307,35 +273,152 @@ function AppContent({
                 </div>
               )}
             </div>
-            <div>
-              <Link to="/settings" style={navLink}>
-                Account
-              </Link>
-              <button
-                onClick={() => {
-                  handleLogout();
-                  navigate("/login");
-                }}
+
+            {/* Right Side */}
+            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+              <select
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
                 style={{
-                  background: "#d33",
-                  color: "#fff",
-                  padding: "8px 16px",
-                  border: "none",
+                  background: "#000",
+                  color: "#0f0",
+                  border: "1px solid #0f0",
                   borderRadius: 4,
+                  padding: "4px 8px",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                }}
+              >
+                {LOCATIONS.map((loc) => (
+                  <option key={loc} value={loc}>{loc}</option>
+                ))}
+              </select>
+              <span style={{ color: "#0ff", fontWeight: "bold", fontSize: "14px" }}>
+                {userInitials}
+              </span>
+              <Link to="/settings" style={navLink} className="account-link">Account</Link>
+              <button
+                onClick={handleLogout}
+                style={{
+                  background: "transparent",
+                  color: "#d33",
+                  padding: "6px 14px",
+                  border: "1px solid #d33",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "600",
                 }}
               >
                 Logout
               </button>
             </div>
+
+            {/* Mobile Menu Overlay */}
+            {showMobileMenu && (
+              <div
+                style={{
+                  position: "fixed",
+                  top: 0,
+                  left: 0,
+                  width: "100vw",
+                  height: "100vh",
+                  background: "rgba(0, 0, 0, 0.9)",
+                  zIndex: 9999,
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: "20px",
+                  overflowY: "auto",
+                }}
+              >
+                <button
+                  onClick={() => setShowMobileMenu(false)}
+                  style={{
+                    alignSelf: "flex-end",
+                    background: "transparent",
+                    border: "1px solid #0f0",
+                    color: "#0f0",
+                    fontSize: "24px",
+                    padding: "8px 16px",
+                    cursor: "pointer",
+                    marginBottom: "20px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  ✕
+                </button>
+                <Link to="/products" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Products</Link>
+                <Link to="/floor" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Floor</Link>
+                <Link to="/molds" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Molds</Link>
+                <Link to="/machines" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Machines</Link>
+                {userRole === "Admin" && (
+                  <>
+                    <div style={{ ...mobileNavLink, color: "#0ff", fontWeight: "bold", cursor: "default" }}>Admin</div>
+                    <Link to="/quotes" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Quotes</Link>
+                    <Link to="/customers" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Customers</Link>
+                    <Link to="/upload-bulk" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Bulk Upload</Link>
+                    <Link to="/inventory" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Inventory</Link>
+                    <Link to="/users" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Users</Link>
+                  </>
+                )}
+                <Link to="/settings" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Account</Link>
+                <div style={{ ...mobileNavLink, display: "flex", alignItems: "center", gap: 12 }}>
+                  <span>Location:</span>
+                  <select
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    style={{
+                      background: "#000",
+                      color: "#0f0",
+                      border: "1px solid #0f0",
+                      borderRadius: 4,
+                      padding: "8px 12px",
+                      fontSize: "16px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {LOCATIONS.map((loc) => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
           </nav>
 
-          <div style={{ padding: 20 }}>
-            <Routes>
-              {/* BOMs */}
-              {/* <Route path="/boms" element={<BomList boms={boms} loading={false} onEdit={() => {}} onDelete={refreshBoms} />} />
-  <Route path="/boms/new" element={<BomForm products={products as any} onSuccess={refreshBoms} onCancel={() => navigate('/boms')} />} />
-  <Route path="/boms/:id" element={<BomForm products={products as any} onSuccess={refreshBoms} onCancel={() => navigate('/boms')} />} /> */}
+          <style>
+            {`
+              * {
+                box-sizing: border-box;
+              }
 
+              body, html {
+                margin: 0;
+                padding: 0;
+                overflow-x: hidden;
+                max-width: 100vw;
+              }
+
+              @media (max-width: 768px) {
+                .hamburger-btn {
+                  display: block !important;
+                }
+                .desktop-menu {
+                  display: none !important;
+                }
+                .account-link {
+                  display: none !important;
+                }
+                .main-content {
+                  padding: 10px !important;
+                  max-width: 100vw !important;
+                }
+              }
+            `}
+          </style>
+
+          <div className="main-content" style={{ padding: 20, width: "100%", boxSizing: "border-box" }}>
+            <Routes>
               {/* Products */}
               <Route
                 path="/products"
@@ -364,16 +447,9 @@ function AppContent({
                 element={<ToolRunDetails />}
               />
 
-              {/* Schedules */}
-              {/* <Route path="/schedules" element={<ScheduleList />} />
-  <Route path="/schedules/new" element={<ScheduleForm />} />
-  <Route path="/schedules/:id" element={<ScheduleForm />} /> */}
-
               <Route
                 path="/floor"
-                element={
-                  signalRReady ? <FloorDashboard /> : <p>Connecting...</p>
-                }
+                element={<FloorDashboard />}
               />
               <Route
                 path="/workorder/new"
@@ -385,18 +461,20 @@ function AppContent({
                 }
               />
               <Route path="/workorder/edit/:id" element={<WorkOrderEdit />} />
-              {/* <Route path="/reports" element={<Reporting />} /> */}
-              {/* <Route path="/gantt" element={<GanttChart />} /> */}
+              <Route path="/workorder/bulk" element={<BulkWorkOrderForm />} />
 
               <Route path="/molds" element={<MoldList />} />
               <Route
                 path="/molds/new"
                 element={<MoldForm onSuccess={() => navigate("/molds")} />}
               />
+              <Route path="/molds/:id/view" element={<MoldView />} />
               <Route
                 path="/molds/:id"
                 element={<MoldForm onSuccess={() => navigate("/molds")} />}
               />
+              <Route path="/tool-checklist" element={<ToolPreSampleChecklist />} />
+              <Route path="/engineering-packet" element={<EngineeringPacketChecklist />} />
 
               <Route path="/machines" element={<MachineList />} />
               <Route path="/machines/:id" element={<MachineForm />} />
@@ -478,6 +556,16 @@ function AppContent({
                     }
                   />
 
+                  {/* Quotes */}
+                  <Route path="/quotes" element={<QuoteList />} />
+                  <Route path="/quotes/new" element={<QuoteFormNew />} />
+                  <Route path="/quotes/:id" element={<QuoteFormNew />} />
+
+                  {/* Customers */}
+                  <Route path="/customers" element={<CustomerList />} />
+                  <Route path="/customers/new" element={<CustomerForm />} />
+                  <Route path="/customers/:id" element={<CustomerForm />} />
+
                   <Route path="/inventory" element={<InventoryDashboard />} />
                   <Route
                     path="/upload-bulk"
@@ -526,7 +614,7 @@ function AppContent({
         </>
       ) : (
         <Routes>
-          <Route path="/login" element={<Login onLogin={handleLogin} />} />
+          <Route path="/login" element={<Login />} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       )}
@@ -566,10 +654,20 @@ function AppContent({
 }
 
 const navLink: React.CSSProperties = {
-  color: "white",
-  margin: "0 12px",
+  color: "#0f0",
+  margin: "0 8px",
   textDecoration: "none",
   fontWeight: "500",
+  fontSize: "14px",
+};
+
+const mobileNavLink: React.CSSProperties = {
+  color: "#0f0",
+  textDecoration: "none",
+  fontSize: "18px",
+  padding: "12px 0",
+  borderBottom: "1px solid #003300",
+  display: "block",
 };
 
 export default App;
