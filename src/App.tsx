@@ -67,6 +67,7 @@ import EngineeringPacketChecklist from "./pages/EngineeringPacketChecklist";
 import CustomerList from "./pages/CustomerList";
 import CustomerForm from "./pages/CustomerForm";
 import BulkWorkOrderForm from "./components/BulkWorkOrderForm";
+import Reports from "./pages/Reports";
 
 import { AuthProvider, useAuth, LOCATIONS } from "./context/AuthContext";
 
@@ -200,6 +201,7 @@ function AppContent() {
               <Link to="/floor" style={navLink}>Floor</Link>
               <Link to="/molds" style={navLink}>Molds</Link>
               <Link to="/machines" style={navLink}>Machines</Link>
+              <Link to="/reports" style={navLink}>Reports</Link>
 
               {userRole === "Admin" && (
                 <div style={{ position: "relative", display: "inline-block" }}>
@@ -351,6 +353,7 @@ function AppContent() {
                 <Link to="/floor" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Floor</Link>
                 <Link to="/molds" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Molds</Link>
                 <Link to="/machines" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Machines</Link>
+                <Link to="/reports" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Reports</Link>
                 {userRole === "Admin" && (
                   <>
                     <div style={{ ...mobileNavLink, color: "#0ff", fontWeight: "bold", cursor: "default" }}>Admin</div>
@@ -480,6 +483,7 @@ function AppContent() {
               <Route path="/machines/:id" element={<MachineForm />} />
 
               <Route path="/settings" element={<UserSettings />} />
+              <Route path="/reports" element={<Reports />} />
 
               {userRole === "Admin" && (
                 <>

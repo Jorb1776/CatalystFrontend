@@ -231,6 +231,39 @@ const ProductList: React.FC<ProductListProps> = ({
                 <strong>Bin ID:</strong> {p.binId || "—"}
               </p>
 
+              {(p.qbQuantityOnHand != null || p.qbReorderPoint != null) && (
+                <div style={{
+                  marginTop: 8,
+                  padding: "8px 10px",
+                  background: "#1a2a1a",
+                  borderRadius: 6,
+                  border: "1px solid #2a3a2a",
+                }}>
+                  <p style={{ margin: "0 0 4px", fontSize: "0.8rem", color: "#6a6", textTransform: "uppercase", letterSpacing: 1 }}>
+                    QuickBooks Inventory
+                  </p>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <span>
+                      <strong>On Hand:</strong>{" "}
+                      <span style={{
+                        color: (p.qbQuantityOnHand ?? 0) <= (p.qbReorderPoint ?? 0) && (p.qbReorderPoint ?? 0) > 0
+                          ? "#f44" : "#4f4"
+                      }}>
+                        {p.qbQuantityOnHand?.toLocaleString() ?? "—"}
+                      </span>
+                    </span>
+                    <span>
+                      <strong>Reorder:</strong> {p.qbReorderPoint?.toLocaleString() ?? "—"}
+                    </span>
+                    {(p.qbSales12Months ?? 0) > 0 && (
+                      <span>
+                        <strong>12mo Sales:</strong> {p.qbSales12Months?.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {(canEdit(userRole) || canDelete(userRole)) && (
                 <div
                   style={{

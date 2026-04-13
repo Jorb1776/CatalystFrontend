@@ -62,7 +62,7 @@ export default function ProductForm({
     moldPath: "",
     cavities: "",
     binId: "",
-    unitPrice: "0.01",
+    unitPrice: "0",
     description: "",
   });
 
@@ -358,12 +358,11 @@ export default function ProductForm({
           />
         </div>
         <div style={field}>
-          <label>Unit Price *</label>
+          <label>Unit Price</label>
           <input
             type="number"
             step="0.01"
-            min="0.01"
-            required
+            min="0"
             value={form.unitPrice}
             onChange={(e) => setForm({ ...form, unitPrice: e.target.value })}
             style={inputStyle}

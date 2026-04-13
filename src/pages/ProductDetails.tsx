@@ -4,6 +4,7 @@ import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import axios from "../axios";
 import { Product } from "../types/Product";
 import toast from "react-hot-toast";
+import SalesChart from "../components/SalesChart";
 
 interface Checklist {
   checklistID: number;
@@ -37,6 +38,7 @@ export default function ProductDetails() {
   const [catalogImageUrl, setCatalogImageUrl] = useState("");
   const [customerImageUploading, setCustomerImageUploading] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [showSalesChart, setShowSalesChart] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -534,6 +536,88 @@ export default function ProductDetails() {
                 <span style={styles.value}>{product.note || "-"}</span>
               </div>
             </div>
+
+            {/* QuickBooks Inventory */}
+            {(product.qbQuantityOnHand != null || product.qbReorderPoint != null) && (
+              <div style={{
+                marginTop: 16,
+                padding: "12px 16px",
+                background: "#1a2a1a",
+                borderRadius: 8,
+                border: "1px solid #2a3a2a",
+              }}>
+                <p style={{ margin: "0 0 8px", fontSize: "0.8rem", color: "#6a6", textTransform: "uppercase", letterSpacing: 1, fontWeight: "bold" }}>
+                  QuickBooks Inventory
+                </p>
+                <div style={styles.row}>
+                  <div style={styles.detail}>
+                    <span style={styles.label}>Quantity On Hand</span>
+                    <span style={{
+                      ...styles.value,
+                      fontSize: "1.3rem",
+                      fontWeight: "bold",
+                      color: (product.qbQuantityOnHand ?? 0) <= (product.qbReorderPoint ?? 0) && (product.qbReorderPoint ?? 0) > 0
+                        ? "#f44" : "#4f4"
+                    }}>
+                      {product.qbQuantityOnHand?.toLocaleString() ?? "—"}
+                    </span>
+                  </div>
+                  <div style={styles.detail}>
+                    <span style={styles.label}>Committed (Open SO)</span>
+                    <span style={{ ...styles.value, fontSize: "1.3rem", fontWeight: "bold", color: (product.qbOnOrder ?? 0) > 0 ? "#f90" : "#888" }}>
+                      {(product.qbOnOrder ?? 0) > 0 ? product.qbOnOrder?.toLocaleString() : "—"}
+                    </span>
+                  </div>
+                  <div style={styles.detail}>
+                    <span style={styles.label}>Available</span>
+                    <span style={{
+                      ...styles.value,
+                      fontSize: "1.3rem",
+                      fontWeight: "bold",
+                      color: ((product.qbQuantityOnHand ?? 0) - (product.qbOnOrder ?? 0)) <= (product.qbReorderPoint ?? 0) && (product.qbReorderPoint ?? 0) > 0
+                        ? "#f44" : "#4f4"
+                    }}>
+                      {((product.qbQuantityOnHand ?? 0) - (product.qbOnOrder ?? 0)).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                <div style={styles.row}>
+                  <div style={styles.detail}>
+                    <span style={styles.label}>Reorder Point</span>
+                    <span style={{ ...styles.value, fontSize: "1.3rem", fontWeight: "bold" }}>
+                      {product.qbReorderPoint?.toLocaleString() ?? "—"}
+                    </span>
+                  </div>
+                  <div style={styles.detail}>
+                    <span style={styles.label}>12-Month Sales</span>
+                    <span style={{ ...styles.value, fontSize: "1.3rem", fontWeight: "bold", color: "#ff0" }}>
+                      {product.qbSales12Months?.toLocaleString() ?? "—"}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
+                  <button
+                    onClick={() => setShowSalesChart(true)}
+                    style={{
+                      background: "transparent",
+                      color: "#0af",
+                      border: "1px solid #0af",
+                      borderRadius: 4,
+                      padding: "5px 14px",
+                      cursor: "pointer",
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    View Sales History
+                  </button>
+                  {product.qbLastSyncDate && (
+                    <span style={{ fontSize: "0.7rem", color: "#555" }}>
+                      Last synced: {new Date(product.qbLastSyncDate).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -917,6 +1001,14 @@ export default function ProductDetails() {
             }}
           />
         </div>
+      )}
+
+      {/* Sales Chart Modal */}
+      {showSalesChart && product && (
+        <SalesChart
+          productId={product.productID}
+          onClose={() => setShowSalesChart(false)}
+        />
       )}
     </div>
   );

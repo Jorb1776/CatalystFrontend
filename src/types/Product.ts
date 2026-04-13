@@ -41,4 +41,11 @@ export interface Product {
   unitPrice: number;
   colorantCode?: string | null;
   additives?: { additiveID: number; percentage: number }[];
+  qbQuantityOnHand?: number;
+  qbReorderPoint?: number;
+  qbSales12Months?: number;
+  qbIsActive?: boolean;
+  qbOnOrder?: number;
+  qbAssemblyDemand?: number;
+  qbLastSyncDate?: string | null;
 }
