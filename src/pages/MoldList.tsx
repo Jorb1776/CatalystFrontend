@@ -10,6 +10,7 @@ interface Mold {
   baseNumber: string;
   materialCompatibility: string;
   maintenanceSchedule: string;
+  physicalLocation?: string;
 }
 
 const MoldList = () => {
@@ -61,21 +62,44 @@ const MoldList = () => {
             marginBottom: 32,
           }}
         >
-          <input
-            type="text"
-            placeholder="Search molds..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              padding: "12px 16px",
-              background: "#222",
-              color: "#fff",
-              border: "1px solid #444",
-              borderRadius: 8,
-              width: 320,
-              fontSize: "15px",
-            }}
-          />
+          <div style={{ position: "relative", width: 320 }}>
+            <input
+              type="text"
+              placeholder="Search molds..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                padding: "12px 16px",
+                paddingRight: 36,
+                background: "#222",
+                color: "#fff",
+                border: "1px solid #444",
+                borderRadius: 8,
+                width: "100%",
+                fontSize: "15px",
+                boxSizing: "border-box",
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "transparent",
+                  border: "none",
+                  color: "#888",
+                  fontSize: "18px",
+                  cursor: "pointer",
+                  padding: "0 4px",
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
           <Link to="/molds/new">
             <button
@@ -147,6 +171,19 @@ const MoldList = () => {
                   >
                     {m.baseNumber}
                   </div>
+                  {m.physicalLocation && (
+                    <span style={{
+                      background: m.physicalLocation === "IN" ? "#1a3d1a" : "#3d3d1a",
+                      color: m.physicalLocation === "IN" ? "#0f0" : "#ff0",
+                      padding: "4px 10px",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      fontWeight: "bold",
+                      border: `1px solid ${m.physicalLocation === "IN" ? "#0f0" : "#ff0"}`,
+                    }}>
+                      {m.physicalLocation === "IN" ? "Indiana" : m.physicalLocation === "TN" ? "Tennessee" : m.physicalLocation}
+                    </span>
+                  )}
                 </div>
 
                 <div

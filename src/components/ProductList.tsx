@@ -135,13 +135,23 @@ const ProductList: React.FC<ProductListProps> = ({
         <h2 style={{ color: "#0f0", marginBottom: 16 }}>Products</h2>
 
         <div style={filterBar}>
-          <input
-            type="text"
-            placeholder="Search products or mold numbers..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={searchInput}
-          />
+          <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+            <input
+              type="text"
+              placeholder="Search products or mold numbers..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ ...searchInput, paddingRight: 36, width: "100%", boxSizing: "border-box" }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "#888", fontSize: "18px", cursor: "pointer", padding: "0 4px" }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
           <select
             value={filterMaterial}
             onChange={(e) => setFilterMaterial(e.target.value)}
@@ -220,6 +230,20 @@ const ProductList: React.FC<ProductListProps> = ({
               </p>
               <p>
                 <strong>Mold:</strong> {p.moldInsert?.fullNumber || "None"}
+                {p.moldInsert?.mold?.physicalLocation && (
+                  <span style={{
+                    marginLeft: 6,
+                    padding: "2px 6px",
+                    borderRadius: 3,
+                    fontSize: "0.75rem",
+                    fontWeight: "bold",
+                    background: p.moldInsert.mold.physicalLocation === "IN" ? "#1a3d1a" : "#3d3d1a",
+                    color: p.moldInsert.mold.physicalLocation === "IN" ? "#0f0" : "#ff0",
+                    border: `1px solid ${p.moldInsert.mold.physicalLocation === "IN" ? "#0f0" : "#ff0"}`,
+                  }}>
+                    {p.moldInsert.mold.physicalLocation}
+                  </span>
+                )}
               </p>
               <p>
                 <strong>Full Box Qty:</strong> {p.fullBoxQty || "0"}

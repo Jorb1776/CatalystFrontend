@@ -78,6 +78,47 @@ export default function FloorDashboard() {
       return new Date(b.endDate).getTime() - new Date(a.endDate).getTime();
     });
 
+  const printWorkOrders = async (orders: WorkOrder[], title: string) => {
+    const isOpen = !title.includes("Completed");
+    // Fetch QB data for open orders
+    let qbMap: Record<number, { onHand: number; committed: number; sales12: number; monthsLeft: string }> = {};
+    if (isOpen) {
+      const productIds = orders.map(wo => wo.productId).filter(Boolean) as number[];
+      const unique = Array.from(new Set(productIds));
+      const results = await Promise.all(unique.map(id => axios.get("/api/products/" + id).then((r: any) => r.data).catch(() => null)));
+      results.forEach((p: any) => {
+        if (!p) return;
+        const onHand = p.qbQuantityOnHand ?? 0;
+        const committed = (p.qbOnOrder ?? 0) + (p.qbAssemblyDemand ?? 0);
+        const sales12 = p.qbSales12Months ?? 0;
+        const reorder = p.qbReorderPoint ?? 0;
+        const avgMonthly = sales12 / 12;
+        const available = onHand - committed;
+        const ml = avgMonthly > 0 ? (available - reorder) / avgMonthly : null;
+        const monthsLeft = ml === null ? "—" : ml <= 0 ? "NOW" : ml.toFixed(1);
+        qbMap[p.productID] = { onHand, committed, sales12, monthsLeft };
+      });
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    const qbHeaders = isOpen ? "<th class=\"right\">On Hand</th><th class=\"right\">Committed</th><th class=\"right\">12mo Sales</th><th class=\"right\">Mo. Left</th>" : "";
+    const completedHeaders = !isOpen ? "<th class=\"right\">Actual Qty</th>" : "";
+    const completedDateHeader = !isOpen ? "<th>Completed</th>" : "";
+    const rows = orders.map(wo => {
+      const due = wo.dueDate ? new Date(wo.dueDate).toLocaleDateString() : "—";
+      const end = wo.endDate ? new Date(wo.endDate).toLocaleDateString() : "—";
+      const statusClass = wo.status === "Done" ? "done" : wo.status === "New" ? "new" : wo.status === "Active" ? "active" : "other";
+      const qb = wo.productId ? qbMap[wo.productId] : null;
+      const qbCells = isOpen ? "<td class=\"right\">" + (qb?.onHand?.toLocaleString() ?? "—") + "</td><td class=\"right\">" + (qb?.committed ?? "—") + "</td><td class=\"right\">" + (qb?.sales12?.toLocaleString() ?? "—") + "</td><td class=\"right\">" + (qb?.monthsLeft ?? "—") + "</td>" : "";
+      return "<tr><td>" + wo.poNumber + "</td><td>" + wo.partNumber + "</td><td>" + (wo.description || "—") + "</td><td>" + wo.customerName + "</td><td class=\"center " + statusClass + "\">" + wo.status + "</td><td class=\"right\">" + wo.quantity + "</td>" + (!isOpen ? "<td class=\"right\">" + (wo.quantityActual ?? "—") + "</td>" : "") + "<td>" + due + "</td>" + (!isOpen ? "<td>" + end + "</td>" : "") + "<td>" + (wo.moldNumber || "—") + "</td>" + qbCells + "</tr>";
+    }).join("");
+    const html = "<html><head><title>" + title + "</title><style>body{font-family:Arial,sans-serif;margin:20px}h2{margin-bottom:4px}p.date{color:#666;font-size:12px;margin-top:0}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#1a6b1a;color:white;padding:6px 8px;text-align:left}th.right{text-align:right}th.center{text-align:center}td{padding:5px 8px;border-bottom:1px solid #ddd}td.right{text-align:right}td.center{text-align:center}tr:nth-child(even){background:#f5f5f5}.done{color:#1976d2;font-weight:bold}.new{color:#d4a017;font-weight:bold}.active{color:#c00;font-weight:bold}.other{color:#666;font-weight:bold}</style></head><body><h2>" + title + "</h2><p class=\"date\">Printed: " + new Date().toLocaleString() + " | " + orders.length + " orders</p><table><thead><tr><th>PO #</th><th>Part #</th><th>Description</th><th>Customer</th><th class=\"center\">Status</th><th class=\"right\">Qty</th>" + completedHeaders + "<th>Due Date</th>" + completedDateHeader + "<th>Mold</th>" + qbHeaders + "</tr></thead><tbody>" + rows + "</tbody></table></body></html>";
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   const loadWorkOrders = async () => {
     try {
       const params = locationFilter && locationFilter !== 'All' ? `?location=${locationFilter}` : '';
@@ -156,7 +197,7 @@ export default function FloorDashboard() {
             fontWeight: "bold",
           }}
         >
-          Floor
+          Open
         </button>
         <button
           onClick={() => setView("completed")}
@@ -226,21 +267,40 @@ export default function FloorDashboard() {
 
       {view === "floor" ? (
         <div>
-          <input
-            type="text"
-            placeholder="Search floor..."
-            value={floorSearch}
-            onChange={(e) => setFloorSearch(e.target.value)}
-            style={{
-              width: "65%",
-              padding: 12,
-              background: "#222",
-              color: "#fff",
-              border: "1px solid #0f0",
-              borderRadius: 8,
-              marginBottom: 16,
-            }}
-          />
+          <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
+            <div style={{ position: "relative", width: "65%" }}>
+              <input
+                type="text"
+                placeholder="Search floor..."
+                value={floorSearch}
+                onChange={(e) => setFloorSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  paddingRight: 36,
+                  background: "#222",
+                  color: "#fff",
+                  border: "1px solid #0f0",
+                  borderRadius: 8,
+                  boxSizing: "border-box",
+                }}
+              />
+              {floorSearch && (
+                <button
+                  onClick={() => setFloorSearch("")}
+                  style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "#888", fontSize: "18px", cursor: "pointer", padding: "0 4px" }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => printWorkOrders(filteredActive, "Open Work Orders")}
+              style={{ background: "#0f0", color: "#000", border: "none", padding: "10px 20px", borderRadius: 6, fontWeight: "bold", cursor: "pointer", fontSize: "14px", whiteSpace: "nowrap" }}
+            >
+              Print
+            </button>
+          </div>
           <div
             style={{
               display: "grid",
@@ -255,21 +315,40 @@ export default function FloorDashboard() {
         </div>
       ) : (
         <div>
-          <input
-            type="text"
-            placeholder="Search completed..."
-            value={completedSearch}
-            onChange={(e) => setCompletedSearch(e.target.value)}
-            style={{
-              width: "65%",
-              padding: 12,
-              background: "#222",
-              color: "#fff",
-              border: "1px solid #0f0",
-              borderRadius: 8,
-              marginBottom: 16,
-            }}
-          />
+          <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
+            <div style={{ position: "relative", width: "65%" }}>
+              <input
+                type="text"
+                placeholder="Search completed..."
+                value={completedSearch}
+                onChange={(e) => setCompletedSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  paddingRight: 36,
+                  background: "#222",
+                  color: "#fff",
+                  border: "1px solid #0f0",
+                  borderRadius: 8,
+                  boxSizing: "border-box",
+                }}
+              />
+              {completedSearch && (
+                <button
+                onClick={() => setCompletedSearch("")}
+                style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "#888", fontSize: "18px", cursor: "pointer", padding: "0 4px" }}
+              >
+                ✕
+              </button>
+            )}
+            </div>
+            <button
+              onClick={() => printWorkOrders(filteredCompleted, "Completed Work Orders")}
+              style={{ background: "#0f0", color: "#000", border: "none", padding: "10px 20px", borderRadius: 6, fontWeight: "bold", cursor: "pointer", fontSize: "14px", whiteSpace: "nowrap" }}
+            >
+              Print
+            </button>
+          </div>
           <div
             style={{
               display: "grid",

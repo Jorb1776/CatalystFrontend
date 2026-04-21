@@ -612,7 +612,7 @@ export default function ProductDetails() {
                   </button>
                   {product.qbLastSyncDate && (
                     <span style={{ fontSize: "0.7rem", color: "#555" }}>
-                      Last synced: {new Date(product.qbLastSyncDate).toLocaleString()}
+                      Last synced: {new Date(product.qbLastSyncDate.replace(/Z$/, "") + "Z").toLocaleString()}
                     </span>
                   )}
                 </div>

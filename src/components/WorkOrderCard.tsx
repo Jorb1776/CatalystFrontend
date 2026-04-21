@@ -38,9 +38,18 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
   const [hasQsi, setHasQsi] = useState<boolean | null>(null);
   const [actualQty, setActualQty] = useState<string>("");
   const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
+  const [qbData, setQbData] = useState<{ qbQuantityOnHand?: number; qbOnOrder?: number; qbSales12Months?: number } | null>(null);
   const confirmCallback = useRef<(() => void) | null>(null);
   const userRole = useUserRole();
   const isReadOnly = !canEdit(userRole);
+
+  useEffect(() => {
+    if (wo.productId && wo.status !== "Done") {
+      axios.get(`/api/products/${wo.productId}`)
+        .then((res: any) => setQbData({ qbQuantityOnHand: res.data.qbQuantityOnHand, qbOnOrder: res.data.qbOnOrder, qbSales12Months: res.data.qbSales12Months }))
+        .catch(() => {});
+    }
+  }, [wo.productId, wo.status]);
 
   const requestConfirm = (msg: string, onYes: () => void) => {
     setConfirmMsg(msg);
@@ -283,9 +292,29 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
                   fontWeight: "bold",
                   color: "#0f0",
                   marginBottom: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
                 }}
               >
                 {wo.partNumber}
+                {wo.productId && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate(`/products/${wo.productId}`); }}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid #555",
+                      color: "#888",
+                      borderRadius: 4,
+                      padding: "1px 6px",
+                      fontSize: "0.65rem",
+                      cursor: "pointer",
+                    }}
+                    title="View part details"
+                  >
+                    Details →
+                  </button>
+                )}
               </div>
               <div
                 style={{ fontSize: "0.75rem", color: "#aaa", marginBottom: 4 }}
@@ -367,6 +396,28 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
                   {wo.moldNumber}
                 </span>
               </div>
+            )}
+            {qbData && wo.status !== "Done" && (
+              <>
+                <div>
+                  <span style={{ color: "#888" }}>On Hand:</span>{" "}
+                  <span style={{ color: (qbData.qbQuantityOnHand ?? 0) > 0 ? "#4f4" : "#f44", fontWeight: "bold" }}>
+                    {qbData.qbQuantityOnHand?.toLocaleString() ?? "—"}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ color: "#888" }}>Open SO:</span>{" "}
+                  <span style={{ color: "#ff0" }}>
+                    {qbData.qbOnOrder?.toLocaleString() ?? "—"}
+                  </span>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <span style={{ color: "#888" }}>12mo Sales:</span>{" "}
+                  <span style={{ color: "#0ff" }}>
+                    {qbData.qbSales12Months?.toLocaleString() ?? "—"}
+                  </span>
+                </div>
+              </>
             )}
           </div>
         </div>

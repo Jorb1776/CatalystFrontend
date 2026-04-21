@@ -68,6 +68,7 @@ import CustomerList from "./pages/CustomerList";
 import CustomerForm from "./pages/CustomerForm";
 import BulkWorkOrderForm from "./components/BulkWorkOrderForm";
 import Reports from "./pages/Reports";
+import QBInventoryReport from "./pages/QBInventoryReport";
 
 import { AuthProvider, useAuth, LOCATIONS } from "./context/AuthContext";
 
@@ -201,8 +202,6 @@ function AppContent() {
               <Link to="/floor" style={navLink}>Floor</Link>
               <Link to="/molds" style={navLink}>Molds</Link>
               <Link to="/machines" style={navLink}>Machines</Link>
-              <Link to="/reports" style={navLink}>Reports</Link>
-
               {userRole === "Admin" && (
                 <div style={{ position: "relative", display: "inline-block" }}>
                   <button
@@ -240,6 +239,8 @@ function AppContent() {
                       onMouseLeave={() => setShowAdminMenu(false)}
                     >
                       {[
+                        { to: "/reports", label: "Reports" },
+                        { to: "/qb-inventory", label: "QB Inventory" },
                         { to: "/quotes", label: "Quotes" },
                         { to: "/customers", label: "Customers" },
                         { to: "/upload-bulk", label: "Bulk Upload" },
@@ -353,10 +354,11 @@ function AppContent() {
                 <Link to="/floor" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Floor</Link>
                 <Link to="/molds" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Molds</Link>
                 <Link to="/machines" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Machines</Link>
-                <Link to="/reports" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Reports</Link>
                 {userRole === "Admin" && (
                   <>
                     <div style={{ ...mobileNavLink, color: "#0ff", fontWeight: "bold", cursor: "default" }}>Admin</div>
+                    <Link to="/reports" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Reports</Link>
+                    <Link to="/qb-inventory" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • QB Inventory</Link>
                     <Link to="/quotes" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Quotes</Link>
                     <Link to="/customers" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Customers</Link>
                     <Link to="/upload-bulk" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Bulk Upload</Link>
@@ -483,7 +485,8 @@ function AppContent() {
               <Route path="/machines/:id" element={<MachineForm />} />
 
               <Route path="/settings" element={<UserSettings />} />
-              <Route path="/reports" element={<Reports />} />
+              {userRole === "Admin" && <Route path="/reports" element={<Reports />} />}
+              {userRole === "Admin" && <Route path="/qb-inventory" element={<QBInventoryReport />} />}
 
               {userRole === "Admin" && (
                 <>
@@ -493,7 +496,7 @@ function AppContent() {
                       <UserList
                         users={users}
                         loading={false}
-                        onEdit={() => {}}
+                        onEdit={(u) => navigate(`/users/${u.id}`)}
                         onDelete={refreshUsers}
                       />
                     }
@@ -502,7 +505,7 @@ function AppContent() {
                     path="/users/new"
                     element={
                       <UserForm
-                        onSuccess={refreshUsers}
+                        onSuccess={async () => { await axios.get("/api/users").then((res: any) => setUsers(res.data)); navigate("/users"); }}
                         onCancel={() => navigate("/users")}
                       />
                     }
@@ -511,7 +514,7 @@ function AppContent() {
                     path="/users/:id"
                     element={
                       <UserForm
-                        onSuccess={refreshUsers}
+                        onSuccess={async () => { await axios.get("/api/users").then((res: any) => setUsers(res.data)); navigate("/users"); }}
                         onCancel={() => navigate("/users")}
                       />
                     }

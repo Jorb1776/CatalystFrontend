@@ -38,6 +38,7 @@ export default function Reports() {
   const [financialSort, setFinancialSort] = useState<"revenue" | "qty" | "price">("revenue");
   const [loading, setLoading] = useState(true);
   const [lastSyncDate, setLastSyncDate] = useState<string | null>(null);
+  const [reorderSearch, setReorderSearch] = useState("");
 
   useEffect(() => {
     if (activeTab === "reorder") {
@@ -261,6 +262,72 @@ export default function Reports() {
             </div>
           </div>
 
+          {/* Print Critical & Warning */}
+          <button
+            onClick={() => {
+              const printWindow = window.open("", "_blank");
+              if (!printWindow) return;
+              const urgent = alerts.filter(a => a.urgency === "critical" || a.urgency === "warning")
+                .sort((a, b) => (a.monthsUntilReorder ?? 999) - (b.monthsUntilReorder ?? 999));
+              const rows = urgent.map(a => {
+                const loc = a.moldLocation === "IN" ? "Indiana" : a.moldLocation === "TN" ? "Tennessee" : a.moldLocation || "—";
+                const ml = a.monthsUntilReorder === null ? "—" : a.monthsUntilReorder <= 0 ? "NOW" : a.monthsUntilReorder.toFixed(1);
+                return "<tr><td class=\"" + a.urgency + "\">" + a.urgency.toUpperCase() + "</td><td>" + a.partNumber + "</td><td>" + a.partName + "</td><td>" + loc + "</td><td class=\"right\">" + a.qbQuantityOnHand.toLocaleString() + "</td><td class=\"right\">" + a.qbOnOrder + "</td><td class=\"right\">" + a.available + "</td><td class=\"right\">" + a.qbReorderPoint + "</td><td class=\"right\">" + a.avgMonthlySales + "</td><td class=\"right\">" + ml + "</td></tr>";
+              }).join("");
+              const html = "<html><head><title>Critical &amp; Warning Reorder Report</title><style>body{font-family:Arial,sans-serif;margin:20px}h2{margin-bottom:4px}p.date{color:#666;font-size:12px;margin-top:0}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#1a6b1a;color:white;padding:8px 10px;text-align:left}th.right{text-align:right}td{padding:6px 10px;border-bottom:1px solid #ddd}td.right{text-align:right}tr:nth-child(even){background:#f5f5f5}.critical{color:#c00;font-weight:bold}.warning{color:#d90;font-weight:bold}</style></head><body><h2>Critical &amp; Warning Reorder Report</h2><p class=\"date\">Printed: " + new Date().toLocaleString() + " | " + urgent.length + " items</p><table><thead><tr><th>Status</th><th>Part #</th><th>Name</th><th>Location</th><th class=\"right\">On Hand</th><th class=\"right\">Committed</th><th class=\"right\">Available</th><th class=\"right\">Reorder Pt</th><th class=\"right\">Avg/Month</th><th class=\"right\">Months Left</th></tr></thead><tbody>" + rows + "</tbody></table></body></html>";
+              printWindow.document.write(html);
+              printWindow.document.close();
+              printWindow.print();
+            }}
+            style={{ background: "#f44", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 6, fontWeight: "bold", cursor: "pointer", fontSize: "14px", marginBottom: 16 }}
+          >
+            Print Critical &amp; Warning
+          </button>
+
+          {/* Search - supports multiple part numbers separated by comma, space, or newline */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "flex-start" }}>
+            <div style={{ position: "relative", flex: 1, maxWidth: 500 }}>
+              <textarea
+                placeholder="Search by part # or name... (separate multiple with commas or new lines)"
+                value={reorderSearch}
+                onChange={e => setReorderSearch(e.target.value)}
+                rows={reorderSearch.includes("\n") || reorderSearch.includes(",") ? 3 : 1}
+                style={{ width: "100%", padding: "10px 36px 10px 14px", background: "#222", color: "#fff", border: "1px solid #444", borderRadius: 6, fontSize: "14px", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit" }}
+              />
+              {reorderSearch && (
+                <button
+                  onClick={() => setReorderSearch("")}
+                  style={{ position: "absolute", right: 8, top: 10, background: "transparent", border: "none", color: "#888", fontSize: "18px", cursor: "pointer" }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            {reorderSearch && (
+              <button
+                onClick={() => {
+                  const printWindow = window.open("", "_blank");
+                  if (!printWindow) return;
+                  const terms = reorderSearch.split(/[,\n]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
+                  const filtered = alerts.filter(a => terms.some(t => a.partNumber.toLowerCase().includes(t) || a.partName.toLowerCase().includes(t)))
+                    .sort((a, b) => a.partNumber.localeCompare(b.partNumber, undefined, { numeric: true, sensitivity: "base" }));
+                  const rows = filtered.map(a => {
+                    const loc = a.moldLocation === "IN" ? "Indiana" : a.moldLocation === "TN" ? "Tennessee" : a.moldLocation || "—";
+                    const ml = a.monthsUntilReorder === null ? "—" : a.monthsUntilReorder <= 0 ? "NOW" : a.monthsUntilReorder.toFixed(1);
+                    return "<tr><td class=\"" + a.urgency + "\">" + a.urgency.toUpperCase() + "</td><td>" + a.partNumber + "</td><td>" + a.partName + "</td><td>" + loc + "</td><td class=\"right\">" + a.qbQuantityOnHand.toLocaleString() + "</td><td class=\"right\">" + a.qbOnOrder + "</td><td class=\"right\">" + a.available + "</td><td class=\"right\">" + a.qbReorderPoint + "</td><td class=\"right\">" + a.avgMonthlySales + "</td><td class=\"right\">" + ml + "</td></tr>";
+                  }).join("");
+                  const html = "<html><head><title>Reorder Report</title><style>body{font-family:Arial,sans-serif;margin:20px}h2{margin-bottom:4px}p.date{color:#666;font-size:12px;margin-top:0}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#1a6b1a;color:white;padding:8px 10px;text-align:left}th.right{text-align:right}td{padding:6px 10px;border-bottom:1px solid #ddd}td.right{text-align:right}tr:nth-child(even){background:#f5f5f5}.critical{color:#c00;font-weight:bold}.warning{color:#d90;font-weight:bold}.watch{color:#070;font-weight:bold}</style></head><body><h2>Reorder Alerts Report</h2><p class=\"date\">Printed: " + new Date().toLocaleString() + " | " + filtered.length + " items</p><table><thead><tr><th>Status</th><th>Part #</th><th>Name</th><th>Location</th><th class=\"right\">On Hand</th><th class=\"right\">Committed</th><th class=\"right\">Available</th><th class=\"right\">Reorder Pt</th><th class=\"right\">Avg/Month</th><th class=\"right\">Months Left</th></tr></thead><tbody>" + rows + "</tbody></table></body></html>";
+                  printWindow.document.write(html);
+                  printWindow.document.close();
+                  printWindow.print();
+                }}
+                style={{ background: "#0f0", color: "#000", border: "none", padding: "10px 20px", borderRadius: 6, fontWeight: "bold", cursor: "pointer", fontSize: "14px", whiteSpace: "nowrap" }}
+              >
+                🖨 Print
+              </button>
+            )}
+          </div>
+
           {/* Table */}
           {loading ? (
             <p style={{ color: "#666", textAlign: "center", padding: 40 }}>Loading...</p>
@@ -292,7 +359,15 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {alerts.map((alert) => {
+                  {alerts.filter(a => {
+                    if (!reorderSearch) return true;
+                    const terms = reorderSearch.split(/[,\n]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
+                    if (terms.length === 0) return true;
+                    return terms.some(t => a.partNumber.toLowerCase().includes(t) || a.partName.toLowerCase().includes(t));
+                  }).sort((a, b) => {
+                    if (!reorderSearch) return 0;
+                    return a.partNumber.localeCompare(b.partNumber, undefined, { numeric: true, sensitivity: "base" });
+                  }).map((alert) => {
                     const colors = urgencyColors[alert.urgency];
                     return (
                       <tr
