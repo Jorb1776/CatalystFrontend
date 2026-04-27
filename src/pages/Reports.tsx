@@ -10,6 +10,7 @@ interface ProductAlert {
   qbReorderPoint: number;
   qbSales12Months: number;
   qbOnOrder: number;
+  qbOnPurchaseOrder: number;
   available: number;
   avgMonthlySales: number;
   monthsUntilReorder: number | null;
@@ -39,6 +40,24 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [lastSyncDate, setLastSyncDate] = useState<string | null>(null);
   const [reorderSearch, setReorderSearch] = useState("");
+  const [showCritical, setShowCritical] = useState(true);
+  const [showWarning, setShowWarning] = useState(true);
+  const [showWatch, setShowWatch] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setShowBackToTop(window.scrollY > 500);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+  const [reorderSortKey, setReorderSortKey] = useState<keyof ProductAlert | "urgencyOrder">("urgencyOrder");
+  const [reorderSortDir, setReorderSortDir] = useState<"asc" | "desc">("asc");
+
+  const toggleReorderSort = (key: keyof ProductAlert | "urgencyOrder") => {
+    if (reorderSortKey === key) setReorderSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setReorderSortKey(key); setReorderSortDir("asc"); }
+  };
+  const reorderArrow = (key: keyof ProductAlert | "urgencyOrder") => reorderSortKey === key ? (reorderSortDir === "asc" ? " ▲" : " ▼") : "";
 
   useEffect(() => {
     if (activeTab === "reorder") {
@@ -50,10 +69,23 @@ export default function Reports() {
 
   const loadReorderAlerts = () => {
     setLoading(true);
-    axios
-      .get<any[]>("/api/products")
-      .then((res) => {
-        const products = res.data
+    Promise.all([
+      axios.get<any[]>("/api/products"),
+      axios.get<any[]>("/api/qbinventory").catch(() => ({ data: [] as any[] })),
+    ])
+      .then(([prodRes, qbRes]) => {
+        // Track normalized part numbers already represented by Catalyst products
+        const normalize = (s: string) => {
+          if (!s) return "";
+          let x = s.trim();
+          const pi = x.indexOf("(");
+          if (pi > 0) x = x.substring(0, pi).trimEnd();
+          x = x.replace(/\*+$/, "").trimEnd();
+          return x.toUpperCase();
+        };
+        const catalystNormalized = new Set<string>(prodRes.data.map((p: any) => normalize(p.partNumber)));
+
+        const catalystAlerts = prodRes.data
           .filter((p: any) => p.qbReorderPoint > 0 && p.qbQuantityOnHand >= 0 && p.qbIsActive !== false)
           .map((p: any) => {
             const onHand = p.qbQuantityOnHand ?? 0;
@@ -61,6 +93,7 @@ export default function Reports() {
             const sales12 = p.qbSales12Months ?? 0;
             const onOrder = p.qbOnOrder ?? 0;
             const assemblyDemand = p.qbAssemblyDemand ?? 0;
+            const onPurchaseOrder = p.qbOnPurchaseOrder ?? 0;
             const totalCommitted = onOrder + assemblyDemand;
             const available = onHand - totalCommitted;
             const avgMonthly = sales12 / 12;
@@ -83,13 +116,51 @@ export default function Reports() {
               qbReorderPoint: reorder,
               qbSales12Months: sales12,
               qbOnOrder: totalCommitted,
+              qbOnPurchaseOrder: onPurchaseOrder,
               available,
               avgMonthlySales: Math.round(avgMonthly),
               monthsUntilReorder: monthsLeft !== null ? Math.round(monthsLeft * 10) / 10 : null,
               urgency,
               moldLocation: p.moldInsert?.mold?.physicalLocation,
             } as ProductAlert;
-          })
+          });
+
+        // Include QB-only items with reorder points (not in Catalyst)
+        const qbOnlyAlerts = (qbRes.data || [])
+          .filter((q: any) =>
+            q.reorderPoint > 0 &&
+            q.isActive !== false &&
+            !catalystNormalized.has(normalize(q.name))
+          )
+          .map((q: any) => {
+            const onHand = q.quantityOnHand ?? 0;
+            const reorder = q.reorderPoint ?? 0;
+            const onOrder = q.onOrder ?? 0;
+            const assemblyDemand = q.assemblyDemand ?? 0;
+            const onPO = q.onPurchaseOrder ?? 0;
+            const totalCommitted = onOrder + assemblyDemand;
+            const available = onHand - totalCommitted;
+            const monthsLeft = available <= reorder ? 0 : null;
+            let urgency: "critical" | "warning" | "watch" = "watch";
+            if (available <= reorder) urgency = "critical";
+            return {
+              productID: -q.id, // negative to avoid conflicts with real productIDs
+              partNumber: q.name,
+              partName: q.fullName || q.name,
+              qbQuantityOnHand: onHand,
+              qbReorderPoint: reorder,
+              qbSales12Months: 0,
+              qbOnOrder: totalCommitted,
+              qbOnPurchaseOrder: onPO,
+              available,
+              avgMonthlySales: 0,
+              monthsUntilReorder: monthsLeft,
+              urgency,
+              moldLocation: undefined,
+            } as ProductAlert;
+          });
+
+        const products = [...catalystAlerts, ...qbOnlyAlerts]
           .sort((a: ProductAlert, b: ProductAlert) => {
             // Critical first, then warning, then watch
             const urgencyOrder = { critical: 0, warning: 1, watch: 2 };
@@ -102,7 +173,7 @@ export default function Reports() {
           });
 
         // Find most recent sync date across all products
-        const latestSync = res.data
+        const latestSync = prodRes.data
           .map((p: any) => p.qbLastSyncDate)
           .filter(Boolean)
           .sort()
@@ -118,24 +189,23 @@ export default function Reports() {
   const loadFinancialData = () => {
     setLoading(true);
     axios
-      .get<any[]>("/api/products")
+      .get<any[]>("/api/products/best-sellers")
       .then((res) => {
-        const products = res.data
-          .map((p: any) => {
-            const sales = p.qbSales12Months ?? 0;
-            const price = p.unitPrice ?? 0;
-            return {
-              productID: p.productID,
-              partNumber: p.partNumber,
-              partName: p.partName,
-              unitPrice: price,
-              qbSales12Months: sales,
-              qbQuantityOnHand: p.qbQuantityOnHand ?? 0,
-              revenue12Months: sales * price,
-              moldLocation: p.moldInsert?.mold?.physicalLocation,
-            } as FinancialProduct;
-          })
-          .filter((p: FinancialProduct) => p.qbSales12Months > 0 && (p as any).qbIsActive !== false);
+        const products = res.data.map((p: any) => {
+          const qty = p.qty ?? 0;
+          const rev = p.revenue ?? 0;
+          const unitPrice = qty > 0 ? rev / qty : (p.unitPrice ?? 0);
+          return {
+            productID: p.productID,
+            partNumber: p.partNumber,
+            partName: p.partName,
+            unitPrice,
+            qbSales12Months: qty,
+            qbQuantityOnHand: 0,
+            revenue12Months: rev,
+            moldLocation: p.location,
+          } as FinancialProduct;
+        }).filter((p: FinancialProduct) => p.qbSales12Months > 0);
 
         setFinancialData(products);
         setLoading(false);
@@ -157,7 +227,6 @@ export default function Reports() {
 
   const tabs: { key: ReportTab; label: string }[] = [
     { key: "reorder", label: "Reorder Alerts" },
-    { key: "financial", label: "Financial" },
     { key: "placeholder2", label: "Coming Soon" },
   ];
 
@@ -172,6 +241,14 @@ export default function Reports() {
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px" }}>
+      {showBackToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          style={{ position: "fixed", bottom: 30, right: 30, width: 65, height: 55, background: "#0f0", color: "#000", border: "none", borderRadius: "25%", fontSize: "13px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 10px rgba(0, 255, 0, 0.4)", zIndex: 999, transition: "all 0.3s ease" }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+        >Back to Top</button>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <h1 style={{ color: "#0f0", margin: 0 }}>Reports</h1>
         <SyncStatus lastSync={lastSyncDate} intervalMinutes={120} />
@@ -267,22 +344,92 @@ export default function Reports() {
             onClick={() => {
               const printWindow = window.open("", "_blank");
               if (!printWindow) return;
-              const urgent = alerts.filter(a => a.urgency === "critical" || a.urgency === "warning")
-                .sort((a, b) => (a.monthsUntilReorder ?? 999) - (b.monthsUntilReorder ?? 999));
+              const urgent = alerts.filter(a => (showCritical && a.urgency === "critical") || (showWarning && a.urgency === "warning") || (showWatch && a.urgency === "watch"))
+                .sort((a, b) => {
+                  const dir = reorderSortDir === "asc" ? 1 : -1;
+                  if (reorderSortKey === "urgencyOrder") {
+                    const order = { critical: 0, warning: 1, watch: 2 };
+                    const ua = order[a.urgency], ub = order[b.urgency];
+                    if (ua !== ub) return (ua - ub) * dir;
+                    return ((a.monthsUntilReorder ?? 999) - (b.monthsUntilReorder ?? 999)) * dir;
+                  }
+                  const av: any = (a as any)[reorderSortKey];
+                  const bv: any = (b as any)[reorderSortKey];
+                  if (av == null && bv == null) return 0;
+                  if (av == null) return 1;
+                  if (bv == null) return -1;
+                  if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+                  return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" }) * dir;
+                });
               const rows = urgent.map(a => {
                 const loc = a.moldLocation === "IN" ? "Indiana" : a.moldLocation === "TN" ? "Tennessee" : a.moldLocation || "—";
                 const ml = a.monthsUntilReorder === null ? "—" : a.monthsUntilReorder <= 0 ? "NOW" : a.monthsUntilReorder.toFixed(1);
-                return "<tr><td class=\"" + a.urgency + "\">" + a.urgency.toUpperCase() + "</td><td>" + a.partNumber + "</td><td>" + a.partName + "</td><td>" + loc + "</td><td class=\"right\">" + a.qbQuantityOnHand.toLocaleString() + "</td><td class=\"right\">" + a.qbOnOrder + "</td><td class=\"right\">" + a.available + "</td><td class=\"right\">" + a.qbReorderPoint + "</td><td class=\"right\">" + a.avgMonthlySales + "</td><td class=\"right\">" + ml + "</td></tr>";
+                return "<tr><td class=\"" + a.urgency + "\">" + a.urgency.toUpperCase() + "</td><td>" + a.partNumber + "</td><td>" + a.partName + "</td><td>" + loc + "</td><td class=\"right\">" + a.qbQuantityOnHand.toLocaleString() + "</td><td class=\"right\">" + a.qbOnOrder + "</td><td class=\"right\">" + (a.qbOnPurchaseOrder || "—") + "</td><td class=\"right\">" + a.available + "</td><td class=\"right\">" + a.qbReorderPoint + "</td><td class=\"right\">" + a.avgMonthlySales + "</td><td class=\"right\">" + ml + "</td></tr>";
               }).join("");
-              const html = "<html><head><title>Critical &amp; Warning Reorder Report</title><style>body{font-family:Arial,sans-serif;margin:20px}h2{margin-bottom:4px}p.date{color:#666;font-size:12px;margin-top:0}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#1a6b1a;color:white;padding:8px 10px;text-align:left}th.right{text-align:right}td{padding:6px 10px;border-bottom:1px solid #ddd}td.right{text-align:right}tr:nth-child(even){background:#f5f5f5}.critical{color:#c00;font-weight:bold}.warning{color:#d90;font-weight:bold}</style></head><body><h2>Critical &amp; Warning Reorder Report</h2><p class=\"date\">Printed: " + new Date().toLocaleString() + " | " + urgent.length + " items</p><table><thead><tr><th>Status</th><th>Part #</th><th>Name</th><th>Location</th><th class=\"right\">On Hand</th><th class=\"right\">Committed</th><th class=\"right\">Available</th><th class=\"right\">Reorder Pt</th><th class=\"right\">Avg/Month</th><th class=\"right\">Months Left</th></tr></thead><tbody>" + rows + "</tbody></table></body></html>";
+              const selectedLabels: string[] = [];
+              if (showCritical) selectedLabels.push("Critical");
+              if (showWarning) selectedLabels.push("Warning");
+              if (showWatch) selectedLabels.push("Watch");
+              const reportTitle = selectedLabels.join(" &amp; ") + " Reorder Report";
+              const html = "<html><head><title>" + reportTitle + "</title><style>@page{margin:0.4in}body{font-family:Arial,sans-serif;margin:0;font-size:10px}h2{margin:0 0 2px;font-size:14px}p.date{color:#666;font-size:9px;margin:0 0 6px}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#1a6b1a;color:white;padding:3px 5px;text-align:left;font-size:9px}th.right{text-align:right}td{padding:2px 5px;border-bottom:1px solid #ddd;line-height:1.2}td.right{text-align:right}tr:nth-child(even){background:#f5f5f5}.critical{color:#c00;font-weight:bold}.warning{color:#d90;font-weight:bold}.watch{color:#070;font-weight:bold}</style></head><body><h2>" + reportTitle + "</h2><p class=\"date\">Printed: " + new Date().toLocaleString() + " | " + urgent.length + " items</p><table><thead><tr><th>Status</th><th>Part #</th><th>Name</th><th>Loc</th><th class=\"right\">OH</th><th class=\"right\">Com</th><th class=\"right\">PO</th><th class=\"right\">Avail</th><th class=\"right\">Reorder</th><th class=\"right\">Avg/Mo</th><th class=\"right\">Mo Left</th></tr></thead><tbody>" + rows + "</tbody></table></body></html>";
               printWindow.document.write(html);
               printWindow.document.close();
               printWindow.print();
             }}
             style={{ background: "#f44", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 6, fontWeight: "bold", cursor: "pointer", fontSize: "14px", marginBottom: 16 }}
           >
-            Print Critical &amp; Warning
+            Print Selected
           </button>
+
+          {/* Urgency toggles */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
+            <span style={{ color: "#888", fontSize: "0.85rem", marginRight: 4 }}>Show:</span>
+            <button
+              onClick={() => setShowCritical(!showCritical)}
+              style={{
+                background: showCritical ? "#f44" : "transparent",
+                color: showCritical ? "#fff" : "#f44",
+                border: "1px solid #f44",
+                padding: "6px 14px",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: showCritical ? "bold" : "normal",
+              }}
+            >
+              Critical
+            </button>
+            <button
+              onClick={() => setShowWarning(!showWarning)}
+              style={{
+                background: showWarning ? "#f90" : "transparent",
+                color: showWarning ? "#000" : "#f90",
+                border: "1px solid #f90",
+                padding: "6px 14px",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: showWarning ? "bold" : "normal",
+              }}
+            >
+              Warning
+            </button>
+            <button
+              onClick={() => setShowWatch(!showWatch)}
+              style={{
+                background: showWatch ? "#0f0" : "transparent",
+                color: showWatch ? "#000" : "#0f0",
+                border: "1px solid #0f0",
+                padding: "6px 14px",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: showWatch ? "bold" : "normal",
+              }}
+            >
+              Watch
+            </button>
+          </div>
 
           {/* Search - supports multiple part numbers separated by comma, space, or newline */}
           <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "flex-start" }}>
@@ -309,14 +456,29 @@ export default function Reports() {
                   const printWindow = window.open("", "_blank");
                   if (!printWindow) return;
                   const terms = reorderSearch.split(/[,\n]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
-                  const filtered = alerts.filter(a => terms.some(t => a.partNumber.toLowerCase().includes(t) || a.partName.toLowerCase().includes(t)))
-                    .sort((a, b) => a.partNumber.localeCompare(b.partNumber, undefined, { numeric: true, sensitivity: "base" }));
+                  const filtered = alerts.filter(a => (showCritical && a.urgency === "critical") || (showWarning && a.urgency === "warning") || (showWatch && a.urgency === "watch")).filter(a => terms.some(t => a.partNumber.toLowerCase().includes(t) || a.partName.toLowerCase().includes(t)))
+                    .sort((a, b) => {
+                      const dir = reorderSortDir === "asc" ? 1 : -1;
+                      if (reorderSortKey === "urgencyOrder") {
+                        const order = { critical: 0, warning: 1, watch: 2 };
+                        const ua = order[a.urgency], ub = order[b.urgency];
+                        if (ua !== ub) return (ua - ub) * dir;
+                        return ((a.monthsUntilReorder ?? 999) - (b.monthsUntilReorder ?? 999)) * dir;
+                      }
+                      const av: any = (a as any)[reorderSortKey];
+                      const bv: any = (b as any)[reorderSortKey];
+                      if (av == null && bv == null) return 0;
+                      if (av == null) return 1;
+                      if (bv == null) return -1;
+                      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+                      return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" }) * dir;
+                    });
                   const rows = filtered.map(a => {
                     const loc = a.moldLocation === "IN" ? "Indiana" : a.moldLocation === "TN" ? "Tennessee" : a.moldLocation || "—";
                     const ml = a.monthsUntilReorder === null ? "—" : a.monthsUntilReorder <= 0 ? "NOW" : a.monthsUntilReorder.toFixed(1);
-                    return "<tr><td class=\"" + a.urgency + "\">" + a.urgency.toUpperCase() + "</td><td>" + a.partNumber + "</td><td>" + a.partName + "</td><td>" + loc + "</td><td class=\"right\">" + a.qbQuantityOnHand.toLocaleString() + "</td><td class=\"right\">" + a.qbOnOrder + "</td><td class=\"right\">" + a.available + "</td><td class=\"right\">" + a.qbReorderPoint + "</td><td class=\"right\">" + a.avgMonthlySales + "</td><td class=\"right\">" + ml + "</td></tr>";
+                    return "<tr><td class=\"" + a.urgency + "\">" + a.urgency.toUpperCase() + "</td><td>" + a.partNumber + "</td><td>" + a.partName + "</td><td>" + loc + "</td><td class=\"right\">" + a.qbQuantityOnHand.toLocaleString() + "</td><td class=\"right\">" + a.qbOnOrder + "</td><td class=\"right\">" + (a.qbOnPurchaseOrder || "—") + "</td><td class=\"right\">" + a.available + "</td><td class=\"right\">" + a.qbReorderPoint + "</td><td class=\"right\">" + a.avgMonthlySales + "</td><td class=\"right\">" + ml + "</td></tr>";
                   }).join("");
-                  const html = "<html><head><title>Reorder Report</title><style>body{font-family:Arial,sans-serif;margin:20px}h2{margin-bottom:4px}p.date{color:#666;font-size:12px;margin-top:0}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#1a6b1a;color:white;padding:8px 10px;text-align:left}th.right{text-align:right}td{padding:6px 10px;border-bottom:1px solid #ddd}td.right{text-align:right}tr:nth-child(even){background:#f5f5f5}.critical{color:#c00;font-weight:bold}.warning{color:#d90;font-weight:bold}.watch{color:#070;font-weight:bold}</style></head><body><h2>Reorder Alerts Report</h2><p class=\"date\">Printed: " + new Date().toLocaleString() + " | " + filtered.length + " items</p><table><thead><tr><th>Status</th><th>Part #</th><th>Name</th><th>Location</th><th class=\"right\">On Hand</th><th class=\"right\">Committed</th><th class=\"right\">Available</th><th class=\"right\">Reorder Pt</th><th class=\"right\">Avg/Month</th><th class=\"right\">Months Left</th></tr></thead><tbody>" + rows + "</tbody></table></body></html>";
+                  const html = "<html><head><title>Reorder Report</title><style>@page{margin:0.4in}body{font-family:Arial,sans-serif;margin:0;font-size:10px}h2{margin:0 0 2px;font-size:14px}p.date{color:#666;font-size:9px;margin:0 0 6px}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#1a6b1a;color:white;padding:3px 5px;text-align:left;font-size:9px}th.right{text-align:right}td{padding:2px 5px;border-bottom:1px solid #ddd;line-height:1.2}td.right{text-align:right}tr:nth-child(even){background:#f5f5f5}.critical{color:#c00;font-weight:bold}.warning{color:#d90;font-weight:bold}.watch{color:#070;font-weight:bold}</style></head><body><h2>Reorder Alerts Report</h2><p class=\"date\">Printed: " + new Date().toLocaleString() + " | " + filtered.length + " items</p><table><thead><tr><th>Status</th><th>Part #</th><th>Name</th><th>Loc</th><th class=\"right\">OH</th><th class=\"right\">Com</th><th class=\"right\">PO</th><th class=\"right\">Avail</th><th class=\"right\">Reorder</th><th class=\"right\">Avg/Mo</th><th class=\"right\">Mo Left</th></tr></thead><tbody>" + rows + "</tbody></table></body></html>";
                   printWindow.document.write(html);
                   printWindow.document.close();
                   printWindow.print();
@@ -336,37 +498,51 @@ export default function Reports() {
               No products with reorder points set. Data will appear after QuickBooks sync.
             </p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div>
               <table
                 style={{
                   width: "100%",
-                  borderCollapse: "collapse",
+                  borderCollapse: "separate", borderSpacing: 0,
                   fontSize: "0.9rem",
                 }}
               >
                 <thead>
                   <tr style={{ borderBottom: "2px solid #333" }}>
-                    <th style={thStyle}>Status</th>
-                    <th style={thStyle}>Part #</th>
-                    <th style={thStyle}>Name</th>
-                    <th style={thStyle}>Location</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>On Hand</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Committed</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Available</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Reorder Pt</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Avg/Month</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Months Left</th>
+                    <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("urgencyOrder")}>Status{reorderArrow("urgencyOrder")}</th>
+                    <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("partNumber")}>Part #{reorderArrow("partNumber")}</th>
+                    <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("partName")}>Name{reorderArrow("partName")}</th>
+                    <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("moldLocation")}>Location{reorderArrow("moldLocation")}</th>
+                    <th style={{ ...thStyle, textAlign: "right", cursor: "pointer" }} onClick={() => toggleReorderSort("qbQuantityOnHand")}>On Hand{reorderArrow("qbQuantityOnHand")}</th>
+                    <th style={{ ...thStyle, textAlign: "right", cursor: "pointer" }} onClick={() => toggleReorderSort("qbOnOrder")}>Committed{reorderArrow("qbOnOrder")}</th>
+                    <th style={{ ...thStyle, textAlign: "right", cursor: "pointer" }} onClick={() => toggleReorderSort("qbOnPurchaseOrder")}>On PO{reorderArrow("qbOnPurchaseOrder")}</th>
+                    <th style={{ ...thStyle, textAlign: "right", cursor: "pointer" }} onClick={() => toggleReorderSort("available")}>Available{reorderArrow("available")}</th>
+                    <th style={{ ...thStyle, textAlign: "right", cursor: "pointer" }} onClick={() => toggleReorderSort("qbReorderPoint")}>Reorder Pt{reorderArrow("qbReorderPoint")}</th>
+                    <th style={{ ...thStyle, textAlign: "right", cursor: "pointer" }} onClick={() => toggleReorderSort("avgMonthlySales")}>Avg/Month{reorderArrow("avgMonthlySales")}</th>
+                    <th style={{ ...thStyle, textAlign: "right", cursor: "pointer" }} onClick={() => toggleReorderSort("monthsUntilReorder")}>Months Left{reorderArrow("monthsUntilReorder")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {alerts.filter(a => {
+                  {alerts.filter(a => (showCritical && a.urgency === "critical") || (showWarning && a.urgency === "warning") || (showWatch && a.urgency === "watch")).filter(a => {
                     if (!reorderSearch) return true;
                     const terms = reorderSearch.split(/[,\n]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
                     if (terms.length === 0) return true;
                     return terms.some(t => a.partNumber.toLowerCase().includes(t) || a.partName.toLowerCase().includes(t));
                   }).sort((a, b) => {
-                    if (!reorderSearch) return 0;
-                    return a.partNumber.localeCompare(b.partNumber, undefined, { numeric: true, sensitivity: "base" });
+                    const dir = reorderSortDir === "asc" ? 1 : -1;
+                    if (reorderSortKey === "urgencyOrder") {
+                      const order = { critical: 0, warning: 1, watch: 2 };
+                      const ua = order[a.urgency];
+                      const ub = order[b.urgency];
+                      if (ua !== ub) return (ua - ub) * dir;
+                      return ((a.monthsUntilReorder ?? 999) - (b.monthsUntilReorder ?? 999)) * dir;
+                    }
+                    const av: any = (a as any)[reorderSortKey];
+                    const bv: any = (b as any)[reorderSortKey];
+                    if (av == null && bv == null) return 0;
+                    if (av == null) return 1;
+                    if (bv == null) return -1;
+                    if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+                    return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" }) * dir;
                   }).map((alert) => {
                     const colors = urgencyColors[alert.urgency];
                     return (
@@ -418,6 +594,9 @@ export default function Reports() {
                         </td>
                         <td style={{ ...tdStyle, textAlign: "right", color: alert.qbOnOrder > 0 ? "#f90" : "#555" }}>
                           {alert.qbOnOrder > 0 ? alert.qbOnOrder.toLocaleString() : "—"}
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: "right", color: alert.qbOnPurchaseOrder > 0 ? "#0ff" : "#555" }}>
+                          {alert.qbOnPurchaseOrder > 0 ? alert.qbOnPurchaseOrder.toLocaleString() : "—"}
                         </td>
                         <td
                           style={{
@@ -525,8 +704,8 @@ export default function Reports() {
               No financial data yet. Data will appear after QuickBooks sync.
             </p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+            <div>
+              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: "0.9rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "2px solid #333" }}>
                     <th style={thStyle}>#</th>
@@ -699,6 +878,11 @@ const thStyle: React.CSSProperties = {
   fontSize: "0.8rem",
   textTransform: "uppercase",
   letterSpacing: 0.5,
+  position: "sticky",
+  top: 52,
+  background: "#0a0a0a",
+  zIndex: 10,
+  borderBottom: "2px solid #333",
 };
 
 const tdStyle: React.CSSProperties = {

@@ -69,6 +69,9 @@ import CustomerForm from "./pages/CustomerForm";
 import BulkWorkOrderForm from "./components/BulkWorkOrderForm";
 import Reports from "./pages/Reports";
 import QBInventoryReport from "./pages/QBInventoryReport";
+import ReceivablesReport from "./pages/ReceivablesReport";
+import BestSellersReport from "./pages/BestSellersReport";
+import FinancialReport from "./pages/FinancialReport";
 
 import { AuthProvider, useAuth, LOCATIONS } from "./context/AuthContext";
 
@@ -160,7 +163,7 @@ function AppContent() {
   };
 
   return (
-    <div style={{ background: "#111", color: "#0f0", minHeight: "100vh", overflowX: "hidden", width: "100%", boxSizing: "border-box" }}>
+    <div style={{ background: "#111", color: "#0f0", minHeight: "100vh", width: "100%", boxSizing: "border-box" }}>
       {isAuthenticated ? (
         <>
           <nav
@@ -239,38 +242,66 @@ function AppContent() {
                       onMouseLeave={() => setShowAdminMenu(false)}
                     >
                       {[
+                        { type: "header", label: "QuickBooks" },
                         { to: "/reports", label: "Reports" },
                         { to: "/qb-inventory", label: "QB Inventory" },
+                        { to: "/receivables", label: "Receivables" },
+                        { type: "header", label: "Financial" },
+                        { to: "/financial", label: "Financial Report" },
+                        { to: "/best-sellers", label: "Best Sellers" },
+                        { type: "header", label: "Management" },
                         { to: "/quotes", label: "Quotes" },
                         { to: "/customers", label: "Customers" },
-                        { to: "/upload-bulk", label: "Bulk Upload" },
                         { to: "/inventory", label: "Inventory" },
+                        { to: "/upload-bulk", label: "Bulk Upload" },
+                        { type: "header", label: "System" },
                         { to: "/users", label: "Users" },
-                      ].map((item) => (
-                        <Link
-                          key={item.to}
-                          to={item.to}
-                          onClick={() => setShowAdminMenu(false)}
-                          style={{
-                            display: "block",
-                            padding: "10px 16px",
-                            color: "#0f0",
-                            textDecoration: "none",
-                            fontSize: "14px",
-                            transition: "all 0.15s ease",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "#0f0";
-                            e.currentTarget.style.color = "#000";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "transparent";
-                            e.currentTarget.style.color = "#0f0";
-                          }}
-                        >
-                          {item.label}
-                        </Link>
-                      ))}
+                      ].map((item, idx) => {
+                        if (item.type === "header") {
+                          return (
+                            <div
+                              key={"header-" + idx}
+                              style={{
+                                padding: "6px 16px 4px",
+                                color: "#0ff",
+                                fontSize: "11px",
+                                fontWeight: "bold",
+                                textTransform: "uppercase",
+                                letterSpacing: "1px",
+                                borderTop: idx === 0 ? "none" : "1px solid #333",
+                                marginTop: idx === 0 ? 0 : 4,
+                              }}
+                            >
+                              {item.label}
+                            </div>
+                          );
+                        }
+                        return (
+                          <Link
+                            key={item.to}
+                            to={item.to!}
+                            onClick={() => setShowAdminMenu(false)}
+                            style={{
+                              display: "block",
+                              padding: "8px 16px 8px 24px",
+                              color: "#0f0",
+                              textDecoration: "none",
+                              fontSize: "14px",
+                              transition: "all 0.15s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = "#0f0";
+                              e.currentTarget.style.color = "#000";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "transparent";
+                              e.currentTarget.style.color = "#0f0";
+                            }}
+                          >
+                            {item.label}
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -357,13 +388,20 @@ function AppContent() {
                 {userRole === "Admin" && (
                   <>
                     <div style={{ ...mobileNavLink, color: "#0ff", fontWeight: "bold", cursor: "default" }}>Admin</div>
-                    <Link to="/reports" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Reports</Link>
-                    <Link to="/qb-inventory" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • QB Inventory</Link>
-                    <Link to="/quotes" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Quotes</Link>
-                    <Link to="/customers" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Customers</Link>
-                    <Link to="/upload-bulk" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Bulk Upload</Link>
-                    <Link to="/inventory" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Inventory</Link>
-                    <Link to="/users" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>  • Users</Link>
+                    <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  QuickBooks</div>
+                    <Link to="/reports" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Reports</Link>
+                    <Link to="/qb-inventory" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • QB Inventory</Link>
+                    <Link to="/receivables" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Receivables</Link>
+                    <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  Financial</div>
+                    <Link to="/financial" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Financial Report</Link>
+                    <Link to="/best-sellers" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Best Sellers</Link>
+                    <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  Management</div>
+                    <Link to="/quotes" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Quotes</Link>
+                    <Link to="/customers" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Customers</Link>
+                    <Link to="/inventory" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Inventory</Link>
+                    <Link to="/upload-bulk" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Bulk Upload</Link>
+                    <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  System</div>
+                    <Link to="/users" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Users</Link>
                   </>
                 )}
                 <Link to="/settings" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Account</Link>
@@ -400,7 +438,6 @@ function AppContent() {
               body, html {
                 margin: 0;
                 padding: 0;
-                overflow-x: hidden;
                 max-width: 100vw;
               }
 
@@ -487,6 +524,9 @@ function AppContent() {
               <Route path="/settings" element={<UserSettings />} />
               {userRole === "Admin" && <Route path="/reports" element={<Reports />} />}
               {userRole === "Admin" && <Route path="/qb-inventory" element={<QBInventoryReport />} />}
+              {userRole === "Admin" && <Route path="/receivables" element={<ReceivablesReport />} />}
+              {userRole === "Admin" && <Route path="/best-sellers" element={<BestSellersReport />} />}
+              {userRole === "Admin" && <Route path="/financial" element={<FinancialReport />} />}
 
               {userRole === "Admin" && (
                 <>

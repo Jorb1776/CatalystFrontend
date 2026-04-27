@@ -38,18 +38,54 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
   const [hasQsi, setHasQsi] = useState<boolean | null>(null);
   const [actualQty, setActualQty] = useState<string>("");
   const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
-  const [qbData, setQbData] = useState<{ qbQuantityOnHand?: number; qbOnOrder?: number; qbSales12Months?: number } | null>(null);
+  const [qbData, setQbData] = useState<{ qbQuantityOnHand?: number; qbOnOrder?: number; qbAssemblyDemand?: number; qbSales12Months?: number } | null>(null);
+  const [showDropShipModal, setShowDropShipModal] = useState(false);
+  const [dropShips, setDropShips] = useState<{ id: number; quantity: number; shipDate: string; notes?: string }[]>([]);
+  const [newDropQty, setNewDropQty] = useState("");
+  const [newDropNotes, setNewDropNotes] = useState("");
   const confirmCallback = useRef<(() => void) | null>(null);
   const userRole = useUserRole();
   const isReadOnly = !canEdit(userRole);
 
+  const loadDropShips = () => {
+    axios.get<any[]>(`/api/workorder/${wo.workOrderId}/drop-ships`)
+      .then(r => setDropShips(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setDropShips([]));
+  };
+
   useEffect(() => {
     if (wo.productId && wo.status !== "Done") {
       axios.get(`/api/products/${wo.productId}`)
-        .then((res: any) => setQbData({ qbQuantityOnHand: res.data.qbQuantityOnHand, qbOnOrder: res.data.qbOnOrder, qbSales12Months: res.data.qbSales12Months }))
+        .then((res: any) => setQbData({ qbQuantityOnHand: res.data.qbQuantityOnHand, qbOnOrder: res.data.qbOnOrder, qbAssemblyDemand: res.data.qbAssemblyDemand, qbSales12Months: res.data.qbSales12Months }))
         .catch(() => {});
     }
-  }, [wo.productId, wo.status]);
+    loadDropShips();
+  }, [wo.productId, wo.status, wo.workOrderId]);
+
+  const dropShipTotal = dropShips.reduce((s, d) => s + d.quantity, 0);
+
+  const addDropShip = async () => {
+    const qty = parseInt(newDropQty);
+    if (!qty || qty <= 0) { toast.error("Enter a valid quantity"); return; }
+    try {
+      await axios.post(`/api/workorder/${wo.workOrderId}/drop-ships`, { quantity: qty, notes: newDropNotes || null });
+      setNewDropQty("");
+      setNewDropNotes("");
+      loadDropShips();
+      toast.success("Drop ship logged");
+    } catch {
+      toast.error("Failed to log drop ship");
+    }
+  };
+
+  const deleteDropShip = async (id: number) => {
+    try {
+      await axios.delete(`/api/workorder/${wo.workOrderId}/drop-ships/${id}`);
+      loadDropShips();
+    } catch {
+      toast.error("Failed to delete");
+    }
+  };
 
   const requestConfirm = (msg: string, onYes: () => void) => {
     setConfirmMsg(msg);
@@ -147,7 +183,11 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
     const qty = parseInt(actualQty);
     if (!qty || qty <= 0) return;
 
-    requestConfirm(`Complete work order with quantity: ${qty}?`, async () => {
+    const totalDelivered = qty + dropShipTotal;
+    const msg = dropShipTotal > 0
+      ? `Complete work order? Produced: ${qty.toLocaleString()} + Drop shipped: ${dropShipTotal.toLocaleString()} = Total delivered: ${totalDelivered.toLocaleString()}`
+      : `Complete work order with quantity: ${qty}?`;
+    requestConfirm(msg, async () => {
       try {
         axios.post(`/api/workorder/${wo.workOrderId}/complete`, {
           quantityActual: qty,
@@ -291,14 +331,14 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
                   fontSize: "1.1rem",
                   fontWeight: "bold",
                   color: "#0f0",
-                  marginBottom: 2,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
+                  marginBottom: 4,
+                  paddingRight: 90,
                 }}
               >
                 {wo.partNumber}
-                {wo.productId && (
+              </div>
+              {wo.productId && (
+                <div>
                   <button
                     onClick={(e) => { e.stopPropagation(); navigate(`/products/${wo.productId}`); }}
                     style={{
@@ -314,24 +354,8 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
                   >
                     Details →
                   </button>
-                )}
-              </div>
-              <div
-                style={{ fontSize: "0.75rem", color: "#aaa", marginBottom: 4 }}
-              >
-                PO: {wo.poNumber || "—"}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#ddd",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {wo.description || "No description"}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Status Badge */}
@@ -375,6 +399,14 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
               borderBottom: "1px solid #333",
             }}
           >
+            <div style={{ gridColumn: "1 / -1" }}>
+              <span style={{ color: "#888" }}>PO:</span>{" "}
+              <span style={{ color: "#fff" }}>{wo.poNumber || "—"}</span>
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <span style={{ color: "#888" }}>Desc:</span>{" "}
+              <span style={{ color: "#ddd" }}>{wo.description || "—"}</span>
+            </div>
             <div>
               <span style={{ color: "#888" }}>Qty:</span>{" "}
               <span style={{ color: "#0f0", fontWeight: "bold" }}>
@@ -406,9 +438,9 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
                   </span>
                 </div>
                 <div>
-                  <span style={{ color: "#888" }}>Open SO:</span>{" "}
+                  <span style={{ color: "#888" }}>Committed:</span>{" "}
                   <span style={{ color: "#ff0" }}>
-                    {qbData.qbOnOrder?.toLocaleString() ?? "—"}
+                    {((qbData.qbOnOrder ?? 0) + (qbData.qbAssemblyDemand ?? 0)).toLocaleString()}
                   </span>
                 </div>
                 <div style={{ gridColumn: "1 / -1" }}>
@@ -470,8 +502,8 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
               </>
             )}
 
-            {/* Print Labels button - show for Active or Done orders */}
-            {(wo.status === "Active" || wo.status === "FirstPiecePending" || wo.status === "Done") && (
+            {/* Print Labels button - hidden */}
+            {false && (wo.status === "Active" || wo.status === "FirstPiecePending" || wo.status === "Done") && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -519,6 +551,17 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
             {["FirstPiecePending", "Active"].includes(wo.status) &&
               !isReadOnly && (
                 <>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowDropShipModal(true); }}
+                    style={{
+                      ...btnStyle("#0af", "#fff"),
+                      gridColumn: "1 / -1",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 0 15px #0af")}
+                    onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
+                  >
+                    DROP SHIP {dropShipTotal > 0 ? `(${dropShipTotal.toLocaleString()})` : ""}
+                  </button>
                   <button
                     onClick={handleUndoStart}
                     style={{
@@ -675,6 +718,70 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
           quantity={wo.quantity}
           onClose={() => setShowPrintModal(false)}
         />
+      )}
+
+      {showDropShipModal && (
+        <div
+          onClick={() => setShowDropShipModal(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "#1a1a1a", border: "1px solid #0af", borderRadius: 12, padding: 24, width: "90%", maxWidth: 500, color: "#fff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0, color: "#0af" }}>Drop Ships — {wo.partNumber}</h3>
+              <button onClick={() => setShowDropShipModal(false)}
+                style={{ background: "transparent", color: "#f44", border: "1px solid #f44", borderRadius: 4, padding: "4px 12px", cursor: "pointer" }}>
+                Close
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 16, color: "#888", fontSize: "0.85rem" }}>
+              PO #{wo.poNumber || "—"} | Ordered: {wo.quantity.toLocaleString()} | Drop Shipped: <span style={{ color: "#0af", fontWeight: "bold" }}>{dropShipTotal.toLocaleString()}</span>
+            </div>
+
+            {dropShips.length > 0 && (
+              <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16, fontSize: "0.85rem" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: 6, borderBottom: "1px solid #333", color: "#0af" }}>Date</th>
+                    <th style={{ textAlign: "right", padding: 6, borderBottom: "1px solid #333", color: "#0af" }}>Qty</th>
+                    <th style={{ textAlign: "left", padding: 6, borderBottom: "1px solid #333", color: "#0af" }}>Notes</th>
+                    <th style={{ borderBottom: "1px solid #333" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dropShips.map(d => (
+                    <tr key={d.id}>
+                      <td style={{ padding: 6, borderBottom: "1px solid #222" }}>{new Date(d.shipDate).toLocaleDateString()}</td>
+                      <td style={{ padding: 6, borderBottom: "1px solid #222", textAlign: "right" }}>{d.quantity.toLocaleString()}</td>
+                      <td style={{ padding: 6, borderBottom: "1px solid #222", color: "#888" }}>{d.notes || "—"}</td>
+                      <td style={{ padding: 6, borderBottom: "1px solid #222" }}>
+                        <button onClick={() => deleteDropShip(d.id)}
+                          style={{ background: "transparent", color: "#f44", border: "1px solid #f44", borderRadius: 4, padding: "2px 8px", cursor: "pointer", fontSize: "0.75rem" }}>
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            <div style={{ borderTop: "1px solid #333", paddingTop: 16 }}>
+              <h4 style={{ margin: "0 0 8px", color: "#0af", fontSize: "0.95rem" }}>Add Drop Ship</h4>
+              <input type="number" min="1" placeholder="Quantity" value={newDropQty}
+                onChange={e => setNewDropQty(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", background: "#222", color: "#fff", border: "1px solid #444", borderRadius: 6, marginBottom: 8, boxSizing: "border-box" }} />
+              <input type="text" placeholder="Notes (optional)" value={newDropNotes}
+                onChange={e => setNewDropNotes(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", background: "#222", color: "#fff", border: "1px solid #444", borderRadius: 6, marginBottom: 12, boxSizing: "border-box" }} />
+              <button onClick={addDropShip}
+                style={{ width: "100%", background: "#0af", color: "#fff", border: "none", padding: "10px", borderRadius: 6, fontWeight: "bold", cursor: "pointer" }}>
+                Log Drop Ship
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Image Lightbox */}

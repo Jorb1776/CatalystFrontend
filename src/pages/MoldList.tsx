@@ -16,13 +16,13 @@ interface Mold {
 const MoldList = () => {
   const [molds, setMolds] = useState<Mold[]>([]);
   const [search, setSearch] = usePersistedSearch("moldSearch");
+  const [locationFilter, setLocationFilter] = useState<"All" | "IN" | "TN">("All");
   const { location: globalLocation } = useLocation();
   const navigate = useNavigate();
 
   const loadMolds = async () => {
     try {
-      const params = globalLocation && globalLocation !== 'All' ? `?location=${globalLocation}` : "";
-      const res = await axios.get<Mold[]>(`/api/molds${params}`);
+      const res = await axios.get<Mold[]>(`/api/molds`);
       setMolds(res.data);
     } catch (err) {
       console.error(err);
@@ -31,11 +31,46 @@ const MoldList = () => {
 
   useEffect(() => {
     loadMolds();
-  }, [globalLocation]);
+  }, []);
 
-  const filteredMolds = molds.filter((m) =>
-    m.baseNumber.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredMolds = molds.filter((m) => {
+    if (locationFilter !== "All" && m.physicalLocation !== locationFilter) return false;
+    return m.baseNumber.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const printReport = async () => {
+    try {
+      const params = locationFilter === "All" ? "" : `?location=${locationFilter}`;
+      const res = await axios.get<{ moldID: number; baseNumber: string; physicalLocation?: string; partNumbers: string[] }[]>(
+        `/api/molds/with-products${params}`
+      );
+      const term = search.toLowerCase();
+      const data = res.data.filter(m => m.baseNumber.toLowerCase().includes(term));
+
+      const locName = (loc?: string) => loc === "IN" ? "Indiana" : loc === "TN" ? "Tennessee" : (loc || "—");
+      const locTitle = locationFilter === "All" ? "All Locations" : locName(locationFilter);
+      const title = `Molds Report — ${locTitle}`;
+
+      const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const rows = data.map(m => {
+        const parts = m.partNumbers.length ? escape(m.partNumbers.join(", ")) : "—";
+        const count = m.partNumbers.length;
+        return `<tr><td>${escape(m.baseNumber)}</td><td>${locName(m.physicalLocation)}</td><td class="right">${count}</td><td>${parts}</td></tr>`;
+      }).join("");
+
+      const totalParts = data.reduce((s, m) => s + m.partNumbers.length, 0);
+      const html = `<html><head><title>${title}</title><style>@page{margin:0.4in}body{font-family:Arial,sans-serif;margin:0;font-size:10px}h2{margin:0 0 2px;font-size:14px}p.date{color:#666;font-size:9px;margin:0 0 6px}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#1a6b1a;color:white;padding:3px 5px;text-align:left;font-size:9px}th.right{text-align:right}td{padding:3px 5px;border-bottom:1px solid #ddd;line-height:1.3;vertical-align:top}td.right{text-align:right}tr:nth-child(even){background:#f5f5f5}tfoot td{border-top:2px solid #333;font-weight:bold;background:#eee}</style></head><body><h2>${title}</h2><p class="date">Printed: ${new Date().toLocaleString()} | ${data.length} molds | ${totalParts} parts</p><table><thead><tr><th>Mold</th><th>Location</th><th class="right"># Parts</th><th>Part Numbers</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td>Total</td><td></td><td class="right">${totalParts}</td><td>${data.length} molds</td></tr></tfoot></table></body></html>`;
+
+      const w = window.open("", "_blank");
+      if (!w) return;
+      w.document.write(html);
+      w.document.close();
+      w.print();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load mold report");
+    }
+  };
 
   return (
     <div style={styles.container}>
@@ -62,24 +97,25 @@ const MoldList = () => {
             marginBottom: 32,
           }}
         >
-          <div style={{ position: "relative", width: 320 }}>
-            <input
-              type="text"
-              placeholder="Search molds..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                padding: "12px 16px",
-                paddingRight: 36,
-                background: "#222",
-                color: "#fff",
-                border: "1px solid #444",
-                borderRadius: 8,
-                width: "100%",
-                fontSize: "15px",
-                boxSizing: "border-box",
-              }}
-            />
+          <div style={{ display: "flex", gap: 16, alignItems: "center", flex: 1 }}>
+            <div style={{ position: "relative", width: 320 }}>
+              <input
+                type="text"
+                placeholder="Search molds..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  padding: "12px 16px",
+                  paddingRight: 36,
+                  background: "#222",
+                  color: "#fff",
+                  border: "1px solid #444",
+                  borderRadius: 8,
+                  width: "100%",
+                  fontSize: "15px",
+                  boxSizing: "border-box",
+                }}
+              />
             {search && (
               <button
                 onClick={() => setSearch("")}
@@ -99,24 +135,64 @@ const MoldList = () => {
                 ✕
               </button>
             )}
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {(["All", "IN", "TN"] as const).map(loc => {
+                const active = locationFilter === loc;
+                const isIN = loc === "IN";
+                const isTN = loc === "TN";
+                return (
+                  <button key={loc} onClick={() => setLocationFilter(loc)}
+                    style={{
+                      background: active ? (isIN ? "#0f0" : isTN ? "#ff0" : "#0ff") : "transparent",
+                      color: active ? "#000" : (isIN ? "#0f0" : isTN ? "#ff0" : "#0ff"),
+                      border: "1px solid " + (isIN ? "#0f0" : isTN ? "#ff0" : "#0ff"),
+                      padding: "10px 18px",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: active ? "bold" : "normal",
+                    }}>
+                    {loc === "All" ? "All" : loc === "IN" ? "Indiana" : "Tennessee"}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <Link to="/molds/new">
+          <div style={{ display: "flex", gap: 8 }}>
             <button
+              onClick={printReport}
               style={{
-                background: "#0f0",
-                color: "#000",
-                padding: "12px 24px",
-                border: "none",
+                background: "transparent",
+                color: "#0f0",
+                padding: "12px 20px",
+                border: "1px solid #0f0",
                 borderRadius: 8,
                 fontWeight: "bold",
                 fontSize: "15px",
                 cursor: "pointer",
               }}
             >
-              + New Mold
+              Print
             </button>
-          </Link>
+            <Link to="/molds/new">
+              <button
+                style={{
+                  background: "#0f0",
+                  color: "#000",
+                  padding: "12px 24px",
+                  border: "none",
+                  borderRadius: 8,
+                  fontWeight: "bold",
+                  fontSize: "15px",
+                  cursor: "pointer",
+                }}
+              >
+                + New Mold
+              </button>
+            </Link>
+          </div>
         </div>
         {filteredMolds.length === 0 ? (
           <div
