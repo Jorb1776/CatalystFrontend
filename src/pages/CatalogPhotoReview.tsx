@@ -51,7 +51,9 @@ export default function CatalogPhotoReview() {
   const load = useCallback(() => {
     setError(null);
     axios
-      .get<Inventory>("/api/partimages/inventory")
+      // Scans the whole image tree and the customer-site folder on another
+      // volume, so it needs more than the 10s default.
+      .get<Inventory>("/api/partimages/inventory", { timeout: 60000 })
       .then((res) => {
         const d: any = res.data;
         if (!d || typeof d !== "object" || !Array.isArray(d.parts)) {
