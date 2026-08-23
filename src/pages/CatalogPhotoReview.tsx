@@ -38,6 +38,8 @@ export default function CatalogPhotoReview() {
   const [busy, setBusy] = useState<string | null>(null);
   const [published, setPublished] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<Filter>("todo");
+  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
+  const [report, setReport] = useState<{ ok: string[]; failed: { part: string; reason: string }[]; ambiguous: string[] } | null>(null);
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== "undefined" && window.innerWidth <= 768
   );
@@ -84,6 +86,65 @@ export default function CatalogPhotoReview() {
     } finally {
       setBusy(null);
     }
+  };
+
+  // Publish every part currently listed, using its first subfolder photo -- the
+  // one the page marks "likely". Parts with more than one subfolder photo are
+  // reported afterwards so they can be checked by eye.
+  const publishAll = async () => {
+    const queue = rows.filter((p) => p.folderFiles.length > 0);
+    if (!queue.length) return;
+
+    const overwriting = queue.filter((p) => p.hasCatalog).length;
+    const warning = overwriting
+      ? `
+
+${overwriting} of these already have a catalog photo and WILL BE REPLACED on the live site.`
+      : "";
+    if (!window.confirm(
+      `Publish ${queue.length} photo${queue.length === 1 ? "" : "s"} to the customer site?` +
+      warning +
+      `
+
+Each publishes as {part}.jpg and goes live immediately.`
+    )) return;
+
+    setReport(null);
+    setBulk({ done: 0, total: queue.length });
+
+    const ok: string[] = [];
+    const failed: { part: string; reason: string }[] = [];
+    const ambiguous = queue.filter((p) => p.folderFiles.length > 1).map((p) => p.partNumber);
+
+    let cursor = 0, done = 0;
+    const worker = async () => {
+      while (cursor < queue.length) {
+        const row = queue[cursor++];
+        const file = row.folderFiles[0];
+        try {
+          await axios.post("/api/customer-images/publish-from-partimages", {
+            partNumber: row.partNumber,
+            fileName: file,
+          });
+          ok.push(row.partNumber);
+          setPublished((prev) => ({ ...prev, [row.partNumber]: file }));
+        } catch (err: any) {
+          const d = err?.response?.data;
+          failed.push({
+            part: row.partNumber,
+            reason: d?.error || d?.message || err?.message || "Publish failed",
+          });
+        }
+        done++;
+        setBulk({ done, total: queue.length });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+
+    setBulk(null);
+    setReport({ ok, failed, ambiguous });
+    if (ok.length) toast.success(`${ok.length} published to the catalog`);
+    if (failed.length) toast.error(`${failed.length} failed — see the report`);
   };
 
   const rows = useMemo(() => {
@@ -148,6 +209,66 @@ export default function CatalogPhotoReview() {
               {inv.flatOnlyCount} parts have only a flat photo and aren't listed
             </span>
           </div>
+
+          {/* bulk publish */}
+          {rows.length > 0 && inv.catalogConfigured && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+              background: "#1a1a1a", border: "1px solid #333", borderRadius: 10,
+              padding: "13px 16px", marginBottom: 16,
+            }}>
+              <button
+                onClick={publishAll}
+                disabled={!!bulk}
+                style={{
+                  ...btn("#0f0"),
+                  background: bulk ? "transparent" : "#0f0",
+                  color: bulk ? "#666" : "#000",
+                  fontWeight: "bold",
+                  cursor: bulk ? "wait" : "pointer",
+                }}
+              >
+                {bulk ? `Publishing ${bulk.done}/${bulk.total}…` : `Publish all ${rows.length} shown`}
+              </button>
+              <span style={{ color: "#888", fontSize: "0.8rem", flex: 1, minWidth: 220, lineHeight: 1.5 }}>
+                Uses each part's subfolder photo — the one marked <span style={{ color: "#0f0" }}>likely</span>.
+                {filter !== "todo" && (
+                  <span style={{ color: "#ff0" }}> This view includes parts that already have a catalog photo; those would be replaced.</span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {bulk && (
+            <div style={{ height: 6, background: "#222", borderRadius: 3, overflow: "hidden", marginBottom: 16 }}>
+              <div style={{ width: `${Math.round((bulk.done / bulk.total) * 100)}%`, height: "100%", background: "#0f0", transition: "width .2s" }} />
+            </div>
+          )}
+
+          {report && (
+            <div style={{ background: "#1a1a1a", border: "1px solid #333", borderLeft: `3px solid ${report.failed.length ? "#f55" : "#0f0"}`, borderRadius: 10, padding: 16, marginBottom: 18 }}>
+              <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginBottom: report.failed.length || report.ambiguous.length ? 12 : 0 }}>
+                <span style={{ color: "#0f0" }}><b style={{ fontSize: "1.3rem" }}>{report.ok.length}</b> published</span>
+                <span style={{ color: report.failed.length ? "#f55" : "#666" }}><b style={{ fontSize: "1.3rem" }}>{report.failed.length}</b> failed</span>
+              </div>
+              {report.ambiguous.length > 0 && (
+                <div style={{ color: "#ff0", fontSize: "0.8rem", marginBottom: 10, lineHeight: 1.5 }}>
+                  {report.ambiguous.length} part{report.ambiguous.length === 1 ? " had" : "s had"} more than one subfolder photo, so the first was used — worth checking by eye:{" "}
+                  <span style={{ color: "#ddd" }}>{report.ambiguous.join(", ")}</span>
+                </div>
+              )}
+              {report.failed.length > 0 && (
+                <div style={{ fontSize: "0.8rem", lineHeight: 1.6 }}>
+                  {report.failed.map((f) => (
+                    <div key={f.part}><span style={{ color: "#f55" }}>{f.part}</span> <span style={{ color: "#888" }}>— {f.reason}</span></div>
+                  ))}
+                </div>
+              )}
+              <button onClick={() => { setReport(null); load(); }} style={{ ...btn("#888"), padding: "6px 14px", fontSize: "0.78rem", marginTop: 12 }}>
+                Refresh list
+              </button>
+            </div>
+          )}
 
           {rows.length === 0 && (
             <div style={{ color: "#888", textAlign: "center", padding: "50px 20px", background: "#1a1a1a", border: "1px solid #333", borderRadius: 12 }}>
