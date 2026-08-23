@@ -111,7 +111,23 @@ export default function PhotoBulkUpload() {
   useEffect(() => {
     axios
       .get<Dest>("/api/customer-images/destination")
-      .then((res) => setDest(res.data))
+      .then((res) => {
+        // An API older than this page has no such route, so the SPA fallback
+        // answers with index.html. Don't read that as a broken folder.
+        const d: any = res.data;
+        if (!d || typeof d !== "object" || typeof d.configured !== "boolean") {
+          setDest({
+            configured: false,
+            path: null,
+            exists: false,
+            writable: false,
+            problem:
+              "Could not check the destination — this server's API is older than this page. Deploy the API build.",
+          });
+          return;
+        }
+        setDest(d as Dest);
+      })
       .catch(() => setDest(null));
   }, []);
 
@@ -276,7 +292,7 @@ export default function PhotoBulkUpload() {
       {dest && !catalogReady && (
         <div style={banner("#ff0")}>
           <strong>CATALOG uploads are unavailable.</strong>{" "}
-          {dest.problem || "The customer-site image folder is not usable."}
+          {dest.problem || "The destination could not be verified."}
           <div style={{ color: "#888", marginTop: 6 }}>
             Set <code style={{ color: "#ddd" }}>CustomerSiteImagesPath</code> in this server's
             appsettings.json to the MarineEast images folder. Engineering photos are unaffected.
