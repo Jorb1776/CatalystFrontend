@@ -74,6 +74,7 @@ import BestSellersReport from "./pages/BestSellersReport";
 import FinancialReport from "./pages/FinancialReport";
 import FeedbackWidget from "./components/FeedbackWidget";
 import Updates from "./pages/Updates";
+import PhotoBulkUpload from "./pages/PhotoBulkUpload";
 
 import { AuthProvider, useAuth, LOCATIONS } from "./context/AuthContext";
 
@@ -256,6 +257,7 @@ function AppContent() {
                         { to: "/customers", label: "Customers" },
                         { to: "/inventory", label: "Inventory" },
                         { to: "/upload-bulk", label: "Bulk Upload" },
+                        { to: "/upload-photos", label: "Bulk Photos" },
                         { type: "header", label: "System" },
                         { to: "/users", label: "Users" },
                       ] : [
@@ -410,6 +412,7 @@ function AppContent() {
                         <Link to="/customers" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Customers</Link>
                         <Link to="/inventory" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Inventory</Link>
                         <Link to="/upload-bulk" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Bulk Upload</Link>
+                        <Link to="/upload-photos" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Bulk Photos</Link>
                         <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  System</div>
                         <Link to="/users" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Users</Link>
                       </>
@@ -537,6 +540,7 @@ function AppContent() {
 
               <Route path="/settings" element={<UserSettings />} />
               <Route path="/updates" element={<Updates />} />
+              {(userRole === "Admin" || userRole === "Manager") && <Route path="/upload-photos" element={<PhotoBulkUpload />} />}
               {(userRole === "Admin" || userRole === "Manager") && <Route path="/reports" element={<Reports />} />}
               {(userRole === "Admin" || userRole === "Manager") && <Route path="/qb-inventory" element={<QBInventoryReport />} />}
               {(userRole === "Admin" || userRole === "Manager") && <Route path="/receivables" element={<ReceivablesReport />} />}
