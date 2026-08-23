@@ -74,10 +74,13 @@ export default function CatalogPhotoReview() {
   const publish = async (part: string, file: string) => {
     setBusy(`${part}/${file}`);
     try {
-      await axios.post("/api/customer-images/publish-from-partimages", {
-        partNumber: part,
-        fileName: file,
-      });
+      // Copies across volumes to the customer site, which is slower than the
+      // 10s default allows for a large photo.
+      await axios.post(
+        "/api/customer-images/publish-from-partimages",
+        { partNumber: part, fileName: file },
+        { timeout: 120000 }
+      );
       setPublished((p) => ({ ...p, [part]: file }));
       toast.success(`${part} published to the catalog`);
     } catch (err: any) {
@@ -122,17 +125,21 @@ Each publishes as {part}.jpg and goes live immediately.`
         const row = queue[cursor++];
         const file = row.folderFiles[0];
         try {
-          await axios.post("/api/customer-images/publish-from-partimages", {
-            partNumber: row.partNumber,
-            fileName: file,
-          });
+          await axios.post(
+            "/api/customer-images/publish-from-partimages",
+            { partNumber: row.partNumber, fileName: file },
+            { timeout: 120000 }
+          );
           ok.push(row.partNumber);
           setPublished((prev) => ({ ...prev, [row.partNumber]: file }));
         } catch (err: any) {
           const d = err?.response?.data;
+          const timedOut = err?.code === "ECONNABORTED";
           failed.push({
             part: row.partNumber,
-            reason: d?.error || d?.message || err?.message || "Publish failed",
+            reason: timedOut
+              ? "Timed out copying to the customer site — may still have completed; refresh to check"
+              : d?.error || d?.message || err?.message || "Publish failed",
           });
         }
         done++;
