@@ -72,6 +72,9 @@ export default function CatalogPhotoReview() {
   useEffect(load, [load]);
 
   const publish = async (part: string, file: string) => {
+    // One at a time: the customer site can hold the target file open, and
+    // overlapping requests made that worse rather than better.
+    if (busy || bulk) return;
     setBusy(`${part}/${file}`);
     try {
       // Copies across volumes to the customer site, which is slower than the
@@ -321,7 +324,7 @@ Each publishes as {part}.jpg and goes live immediately.`
                         accent="#888"
                         action={
                           inv.catalogConfigured
-                            ? { label: "Use for catalog", onClick: () => publish(p.partNumber, p.flatFile!), busy: busy === `${p.partNumber}/${p.flatFile}` }
+                            ? { label: "Use for catalog", onClick: () => publish(p.partNumber, p.flatFile!), busy: busy === `${p.partNumber}/${p.flatFile}`, blocked: !!busy || !!bulk }
                             : undefined
                         }
                       />
@@ -338,7 +341,7 @@ Each publishes as {part}.jpg and goes live immediately.`
                         suggested
                         action={
                           inv.catalogConfigured
-                            ? { label: "Publish to catalog", onClick: () => publish(p.partNumber, f), busy: busy === `${p.partNumber}/${f}` }
+                            ? { label: "Publish to catalog", onClick: () => publish(p.partNumber, f), busy: busy === `${p.partNumber}/${f}`, blocked: !!busy || !!bulk }
                             : undefined
                         }
                       />
@@ -364,7 +367,7 @@ function Tile({ label, src, caption, accent, suggested, action }: {
   caption: string;
   accent: string;
   suggested?: boolean;
-  action?: { label: string; onClick: () => void; busy: boolean };
+  action?: { label: string; onClick: () => void; busy: boolean; blocked?: boolean };
 }) {
   const [broken, setBroken] = useState(false);
   return (
@@ -383,8 +386,14 @@ function Tile({ label, src, caption, accent, suggested, action }: {
       </div>
       <div style={{ color: "#777", fontSize: "0.68rem", wordBreak: "break-all", lineHeight: 1.4 }}>{caption}</div>
       {action && (
-        <button onClick={action.onClick} disabled={action.busy}
-          style={{ ...btn(accent), padding: "6px 10px", fontSize: "0.76rem", cursor: action.busy ? "wait" : "pointer" }}>
+        <button onClick={action.onClick} disabled={action.busy || action.blocked}
+          style={{
+            ...btn(accent),
+            padding: "6px 10px",
+            fontSize: "0.76rem",
+            opacity: action.blocked && !action.busy ? 0.4 : 1,
+            cursor: action.busy ? "wait" : action.blocked ? "not-allowed" : "pointer",
+          }}>
           {action.busy ? "Publishing…" : action.label}
         </button>
       )}
