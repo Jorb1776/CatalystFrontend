@@ -40,6 +40,14 @@ interface Row {
   existing: boolean;
 }
 
+interface Dest {
+  configured: boolean;
+  path: string | null;
+  exists: boolean;
+  writable: boolean;
+  problem?: string | null;
+}
+
 interface Result {
   name: string;
   ok: boolean;
@@ -66,6 +74,7 @@ export default function PhotoBulkUpload() {
 
   const [parts, setParts] = useState<Map<string, string> | null>(null); // lowercase -> real
   const [loadError, setLoadError] = useState(false);
+  const [dest, setDest] = useState<Dest | null>(null);
   const [kind, setKind] = useState<Kind>("catalyst");
   const [dragging, setDragging] = useState<Kind | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
@@ -96,6 +105,17 @@ export default function PhotoBulkUpload() {
       })
       .catch(() => setLoadError(true));
   }, []);
+
+  // The catalog folder belongs to the MarineEast site, not to Catalyst, so it can
+  // be unset or unwritable on this server. Find out before a batch is dropped.
+  useEffect(() => {
+    axios
+      .get<Dest>("/api/customer-images/destination")
+      .then((res) => setDest(res.data))
+      .catch(() => setDest(null));
+  }, []);
+
+  const catalogReady = !dest || (dest.configured && dest.exists && dest.writable);
 
   const examine = (files: File[], k: Kind): Row[] => {
     const allowed = KINDS[k].exts;
@@ -253,6 +273,17 @@ export default function PhotoBulkUpload() {
         </div>
       )}
 
+      {dest && !catalogReady && (
+        <div style={banner("#ff0")}>
+          <strong>CATALOG uploads are unavailable.</strong>{" "}
+          {dest.problem || "The customer-site image folder is not usable."}
+          <div style={{ color: "#888", marginTop: 6 }}>
+            Set <code style={{ color: "#ddd" }}>CustomerSiteImagesPath</code> in this server's
+            appsettings.json to the MarineEast images folder. Engineering photos are unaffected.
+          </div>
+        </div>
+      )}
+
       {/* ---------- drop zones ---------- */}
       {!rows.length && !results && (
         <div style={{ display: "flex", gap: 16, marginTop: 24, flexDirection: isMobile ? "column" : "row" }}>
@@ -262,10 +293,10 @@ export default function PhotoBulkUpload() {
             return (
               <div
                 key={k}
-                onDragOver={(e) => { e.preventDefault(); setDragging(k); }}
+                onDragOver={(e) => { e.preventDefault(); if (k !== "catalog" || catalogReady) setDragging(k); }}
                 onDragLeave={(e) => { e.preventDefault(); setDragging(null); }}
-                onDrop={(e) => onDrop(e, k)}
-                onClick={() => { setKind(k); inputRef.current?.click(); }}
+                onDrop={(e) => { if (k === "catalog" && !catalogReady) { e.preventDefault(); setDragging(null); return; } onDrop(e, k); }}
+                onClick={() => { if (k === "catalog" && !catalogReady) return; setKind(k); inputRef.current?.click(); }}
                 style={{
                   flex: 1,
                   minHeight: isMobile ? 170 : 260,
@@ -277,7 +308,8 @@ export default function PhotoBulkUpload() {
                   alignItems: "center",
                   justifyContent: "center",
                   padding: 20,
-                  cursor: "pointer",
+                  cursor: k === "catalog" && !catalogReady ? "not-allowed" : "pointer",
+                  opacity: k === "catalog" && !catalogReady ? 0.45 : 1,
                   textAlign: "center",
                   transition: "all .2s ease",
                 }}
@@ -289,7 +321,11 @@ export default function PhotoBulkUpload() {
                   {cfg.blurb}
                 </div>
                 <div style={{ color: active ? cfg.accent : "#666", fontSize: "0.9rem" }}>
-                  {active ? "Release to check" : "Drop photos or click"}
+                  {k === "catalog" && !catalogReady
+                    ? "Unavailable — destination not ready"
+                    : active
+                    ? "Release to check"
+                    : "Drop photos or click"}
                 </div>
                 <div style={{ color: "#555", fontSize: "0.72rem", marginTop: 8 }}>
                   {cfg.exts.join("  ")}
