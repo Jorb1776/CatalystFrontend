@@ -77,6 +77,8 @@ export default function PhotoBulkUpload() {
   const [dest, setDest] = useState<Dest | null>(null);
   const [kind, setKind] = useState<Kind>("catalyst");
   const [dragging, setDragging] = useState<Kind | null>(null);
+  // Only one zone is open at a time, so the target of a drop is never ambiguous.
+  const [openZone, setOpenZone] = useState<Kind | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -316,55 +318,90 @@ export default function PhotoBulkUpload() {
         </div>
       )}
 
-      {/* ---------- drop zones ---------- */}
+      {/* ---------- pick a destination, then drop ---------- */}
       {!rows.length && !results && (
-        <div style={{ display: "flex", gap: 16, marginTop: 24, flexDirection: isMobile ? "column" : "row" }}>
-          {(Object.keys(KINDS) as Kind[]).map((k) => {
-            const cfg = KINDS[k];
-            const active = dragging === k;
-            return (
-              <div
-                key={k}
-                onDragOver={(e) => { e.preventDefault(); if (k !== "catalog" || catalogReady) setDragging(k); }}
-                onDragLeave={(e) => { e.preventDefault(); setDragging(null); }}
-                onDrop={(e) => { if (k === "catalog" && !catalogReady) { e.preventDefault(); setDragging(null); return; } onDrop(e, k); }}
-                onClick={() => { if (k === "catalog" && !catalogReady) return; setKind(k); inputRef.current?.click(); }}
-                style={{
-                  flex: 1,
-                  minHeight: isMobile ? 170 : 260,
-                  border: `3px dashed ${active ? cfg.accent : "#444"}`,
-                  borderRadius: 16,
-                  background: active ? `${cfg.accent}14` : "rgba(255,255,255,0.02)",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 20,
-                  cursor: k === "catalog" && !catalogReady ? "not-allowed" : "pointer",
-                  opacity: k === "catalog" && !catalogReady ? 0.45 : 1,
-                  textAlign: "center",
-                  transition: "all .2s ease",
-                }}
-              >
-                <div style={{ color: cfg.accent, fontSize: "1.3rem", fontWeight: "bold", letterSpacing: "0.05em" }}>
-                  {cfg.label}
-                </div>
-                <div style={{ color: "#aaa", fontSize: "0.85rem", margin: "10px 0 14px", maxWidth: 260, lineHeight: 1.5 }}>
-                  {cfg.blurb}
-                </div>
-                <div style={{ color: active ? cfg.accent : "#666", fontSize: "0.9rem" }}>
-                  {k === "catalog" && !catalogReady
-                    ? "Unavailable — destination not ready"
-                    : active
-                    ? "Release to check"
-                    : "Drop photos or click"}
-                </div>
-                <div style={{ color: "#555", fontSize: "0.72rem", marginTop: 8 }}>
-                  {cfg.exts.join("  ")}
-                </div>
+        <div style={{ marginTop: 24 }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {(Object.keys(KINDS) as Kind[]).map((k) => {
+              const cfg = KINDS[k];
+              const isOpen = openZone === k;
+              const blocked = k === "catalog" && !catalogReady;
+              return (
+                <button
+                  key={k}
+                  onClick={() => {
+                    if (blocked) return;
+                    setOpenZone(isOpen ? null : k);   // opening one closes the other
+                    setKind(k);
+                  }}
+                  disabled={blocked}
+                  style={{
+                    flex: isMobile ? "1 1 100%" : "1 1 240px",
+                    textAlign: "left",
+                    background: isOpen ? `${cfg.accent}1a` : "transparent",
+                    border: `2px solid ${isOpen ? cfg.accent : "#3a3a3a"}`,
+                    borderRadius: 12,
+                    padding: "16px 18px",
+                    cursor: blocked ? "not-allowed" : "pointer",
+                    opacity: blocked ? 0.45 : 1,
+                    transition: "all .15s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <span style={{ color: cfg.accent, fontSize: "1.05rem", fontWeight: "bold", letterSpacing: "0.05em" }}>
+                      {cfg.label}
+                    </span>
+                    <span style={{ color: isOpen ? cfg.accent : "#666", fontSize: "0.8rem" }}>
+                      {blocked ? "unavailable" : isOpen ? "▲" : "▼"}
+                    </span>
+                  </div>
+                  <div style={{ color: "#999", fontSize: "0.8rem", marginTop: 6, lineHeight: 1.5 }}>
+                    {cfg.blurb}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {openZone && (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragging(openZone); }}
+              onDragLeave={(e) => { e.preventDefault(); setDragging(null); }}
+              onDrop={(e) => onDrop(e, openZone)}
+              onClick={() => { setKind(openZone); inputRef.current?.click(); }}
+              style={{
+                marginTop: 16,
+                minHeight: isMobile ? 200 : 300,
+                border: `3px dashed ${dragging === openZone ? KINDS[openZone].accent : "#444"}`,
+                borderRadius: 16,
+                background: dragging === openZone ? `${KINDS[openZone].accent}14` : "rgba(255,255,255,0.02)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 24,
+                cursor: "pointer",
+                textAlign: "center",
+                transition: "all .2s ease",
+              }}
+            >
+              <div style={{ color: KINDS[openZone].accent, fontSize: "1.4rem", fontWeight: "bold", letterSpacing: "0.06em" }}>
+                {KINDS[openZone].label}
               </div>
-            );
-          })}
+              <div style={{ color: dragging === openZone ? KINDS[openZone].accent : "#888", fontSize: "1rem", marginTop: 14 }}>
+                {dragging === openZone ? "Release to check" : "Drop photos here, or click to browse"}
+              </div>
+              <div style={{ color: "#555", fontSize: "0.75rem", marginTop: 10 }}>
+                {KINDS[openZone].exts.join("   ")}
+              </div>
+            </div>
+          )}
+
+          {!openZone && (
+            <div style={{ color: "#666", fontSize: "0.85rem", marginTop: 16, textAlign: "center" }}>
+              Choose a destination above to open its drop area.
+            </div>
+          )}
         </div>
       )}
 
