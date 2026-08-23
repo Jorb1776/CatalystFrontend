@@ -73,6 +73,7 @@ import ReceivablesReport from "./pages/ReceivablesReport";
 import BestSellersReport from "./pages/BestSellersReport";
 import FinancialReport from "./pages/FinancialReport";
 import FeedbackWidget from "./components/FeedbackWidget";
+import Updates from "./pages/Updates";
 
 import { AuthProvider, useAuth, LOCATIONS } from "./context/AuthContext";
 
@@ -336,6 +337,7 @@ function AppContent() {
               <span style={{ color: "#0ff", fontWeight: "bold", fontSize: "14px" }}>
                 {userInitials}
               </span>
+              <Link to="/updates" style={navLink}>What's New</Link>
               <Link to="/settings" style={navLink} className="account-link">Account</Link>
               <button
                 onClick={handleLogout}
@@ -414,6 +416,7 @@ function AppContent() {
                     )}
                   </>
                 )}
+                <Link to="/updates" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>What's New</Link>
                 <Link to="/settings" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Account</Link>
                 <div style={{ ...mobileNavLink, display: "flex", alignItems: "center", gap: 12 }}>
                   <span>Location:</span>
@@ -533,6 +536,7 @@ function AppContent() {
               <Route path="/machines/:id" element={<MachineForm />} />
 
               <Route path="/settings" element={<UserSettings />} />
+              <Route path="/updates" element={<Updates />} />
               {(userRole === "Admin" || userRole === "Manager") && <Route path="/reports" element={<Reports />} />}
               {(userRole === "Admin" || userRole === "Manager") && <Route path="/qb-inventory" element={<QBInventoryReport />} />}
               {(userRole === "Admin" || userRole === "Manager") && <Route path="/receivables" element={<ReceivablesReport />} />}
