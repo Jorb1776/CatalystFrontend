@@ -92,6 +92,22 @@ export default function PhotoBulkUpload() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // A file dropped anywhere other than a drop zone is handled by the browser,
+  // which navigates to file:///... and abandons the page (Firefox reports it as
+  // a security error). Swallow drops outside the zones so a near-miss on a
+  // large batch does not throw away the work.
+  useEffect(() => {
+    const swallow = (e: DragEvent) => {
+      if (e.dataTransfer?.types?.includes("Files")) e.preventDefault();
+    };
+    window.addEventListener("dragover", swallow);
+    window.addEventListener("drop", swallow);
+    return () => {
+      window.removeEventListener("dragover", swallow);
+      window.removeEventListener("drop", swallow);
+    };
+  }, []);
+
   // Part numbers drive the preflight check, so load them once up front.
   useEffect(() => {
     axios
