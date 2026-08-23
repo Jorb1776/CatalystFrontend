@@ -38,7 +38,7 @@ const CustomerList = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <h2>Customers</h2>
         <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} style={searchStyle} />
         <Link to="/customers/new"><button style={btnSuccess}>+ New Customer</button></Link>
@@ -84,7 +84,7 @@ const CustomerList = () => {
   );
 };
 
-const searchStyle: React.CSSProperties = { padding: 8, background: '#222', color: '#0f0', border: '1px solid #0f0', borderRadius: 4, width: 200 };
+const searchStyle: React.CSSProperties = { padding: 8, background: '#222', color: '#0f0', border: '1px solid #0f0', borderRadius: 4, flex: '1 1 160px', minWidth: 140, maxWidth: 240 };
 const tableStyle: React.CSSProperties = { width: '100%', borderCollapse: 'collapse' };
 const th: React.CSSProperties = { textAlign: 'left', padding: '12px 8px', borderBottom: '2px solid #0f0', color: '#0f0' };
 const td: React.CSSProperties = { padding: '12px 8px', borderBottom: '1px solid #333' };

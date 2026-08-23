@@ -25,7 +25,8 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
-import { useLocation, LOCATIONS } from "../context/AuthContext";
+import { useLocation, LOCATIONS, canCreate, canDelete } from "../context/AuthContext";
+import { useUserRole } from "../hooks/useUserRole";
 import SearchIcon from "@mui/icons-material/Search";
 import DeleteIcon from "@mui/icons-material/Delete";
 
@@ -53,6 +54,7 @@ interface Machine {
 export default function MachineList() {
   const navigate = useNavigate();
   const { location: currentLocation, setLocation } = useLocation();
+  const userRole = useUserRole();
   const [machines, setMachines] = useState<Machine[]>([]);
   const [filteredMachines, setFilteredMachines] = useState<Machine[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -151,6 +153,7 @@ export default function MachineList() {
         }}
       >
         <h1 style={{ color: "#0f0", margin: 0 }}>Machines</h1>
+        {canCreate(userRole) && (
         <Button
           variant="contained"
           onClick={() => navigate("/machines/new")}
@@ -163,6 +166,7 @@ export default function MachineList() {
         >
           + Add Machine
         </Button>
+        )}
       </Box>
 
       <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
@@ -287,16 +291,18 @@ export default function MachineList() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(machine);
-                      }}
-                      sx={{ color: "#f00" }}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
+                    {canDelete(userRole) && (
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(machine);
+                        }}
+                        sx={{ color: "#f00" }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

@@ -3,7 +3,8 @@ import React, { useState, useEffect } from "react";
 import axios from "../axios";
 import { Link, useNavigate } from "react-router-dom";
 import { usePersistedSearch } from "../hooks/usePersistedSearch";
-import { useLocation } from "../context/AuthContext";
+import { useLocation, canCreate } from "../context/AuthContext";
+import { useUserRole } from "../hooks/useUserRole";
 
 interface Mold {
   moldID: number;
@@ -18,7 +19,17 @@ const MoldList = () => {
   const [search, setSearch] = usePersistedSearch("moldSearch");
   const [locationFilter, setLocationFilter] = useState<"All" | "IN" | "TN">("All");
   const { location: globalLocation } = useLocation();
+  const userRole = useUserRole();
   const navigate = useNavigate();
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 768
+  );
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const loadMolds = async () => {
     try {
@@ -93,12 +104,15 @@ const MoldList = () => {
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center",
+            alignItems: isMobile ? "stretch" : "center",
+            flexDirection: isMobile ? "column" : "row",
             marginBottom: 32,
+            flexWrap: "wrap",
+            gap: 16,
           }}
         >
-          <div style={{ display: "flex", gap: 16, alignItems: "center", flex: 1 }}>
-            <div style={{ position: "relative", width: 320 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, flexDirection: isMobile ? "column" : "row", flexWrap: isMobile ? "nowrap" : "wrap", minWidth: 0, width: isMobile ? "100%" : undefined }}>
+            <div style={{ position: "relative", flex: 1, minWidth: isMobile ? 0 : 200, maxWidth: isMobile ? "none" : 320, width: isMobile ? "100%" : undefined }}>
               <input
                 type="text"
                 placeholder="Search molds..."
@@ -136,7 +150,7 @@ const MoldList = () => {
               </button>
             )}
             </div>
-            <div style={{ display: "flex", gap: 4 }}>
+            <div style={{ display: "flex", gap: 4, width: isMobile ? "100%" : undefined }}>
               {(["All", "IN", "TN"] as const).map(loc => {
                 const active = locationFilter === loc;
                 const isIN = loc === "IN";
@@ -152,6 +166,8 @@ const MoldList = () => {
                       cursor: "pointer",
                       fontSize: "14px",
                       fontWeight: active ? "bold" : "normal",
+                      flex: isMobile ? 1 : undefined,
+                      whiteSpace: "nowrap",
                     }}>
                     {loc === "All" ? "All" : loc === "IN" ? "Indiana" : "Tennessee"}
                   </button>
@@ -160,7 +176,7 @@ const MoldList = () => {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, width: isMobile ? "100%" : undefined }}>
             <button
               onClick={printReport}
               style={{
@@ -172,26 +188,30 @@ const MoldList = () => {
                 fontWeight: "bold",
                 fontSize: "15px",
                 cursor: "pointer",
+                flex: isMobile ? 1 : undefined,
               }}
             >
               Print
             </button>
-            <Link to="/molds/new">
-              <button
-                style={{
-                  background: "#0f0",
-                  color: "#000",
-                  padding: "12px 24px",
-                  border: "none",
-                  borderRadius: 8,
-                  fontWeight: "bold",
-                  fontSize: "15px",
-                  cursor: "pointer",
-                }}
-              >
-                + New Mold
-              </button>
-            </Link>
+            {canCreate(userRole) && (
+              <Link to="/molds/new" style={{ flex: isMobile ? 1 : undefined }}>
+                <button
+                  style={{
+                    background: "#0f0",
+                    color: "#000",
+                    padding: "12px 24px",
+                    border: "none",
+                    borderRadius: 8,
+                    fontWeight: "bold",
+                    fontSize: "15px",
+                    cursor: "pointer",
+                    width: isMobile ? "100%" : undefined,
+                  }}
+                >
+                  + New Mold
+                </button>
+              </Link>
+            )}
           </div>
         </div>
         {filteredMolds.length === 0 ? (
@@ -213,7 +233,7 @@ const MoldList = () => {
             style={{
               display: "grid",
               gap: 16,
-              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))",
             }}
           >
             {filteredMolds.map((m) => (

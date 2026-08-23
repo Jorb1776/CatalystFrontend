@@ -88,9 +88,9 @@ const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         fontFamily: 'system-ui, sans-serif',
-        padding: 20,
+        padding: '80px 20px 40px',
         position: 'relative',
       }}
     >

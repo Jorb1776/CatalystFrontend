@@ -91,11 +91,11 @@ export default function FinancialReport() {
       {showBackToTop && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          style={{ position: "fixed", bottom: 30, right: 30, width: 65, height: 55, background: "#0f0", color: "#000", border: "none", borderRadius: "25%", fontSize: "13px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 10px rgba(0, 255, 0, 0.4)", zIndex: 999 }}
+          style={{ position: "fixed", bottom: 96, right: 24, width: 65, height: 55, background: "#0f0", color: "#000", border: "none", borderRadius: "25%", fontSize: "13px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 10px rgba(0, 255, 0, 0.4)", zIndex: 999 }}
         >Back to Top</button>
       )}
       <button onClick={() => navigate(-1)} style={styles.backBtn}>← Back</button>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <h2 style={{ color: "#0f0", margin: 0, fontSize: "1.8rem" }}>Financial — 12 Month Revenue</h2>
         <button onClick={printReport} style={styles.printBtn}>Print</button>
       </div>
@@ -135,8 +135,8 @@ export default function FinancialReport() {
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr>
-                <th style={styles.th}>#</th>
-                <th style={styles.th}>Part #</th>
+                <th style={{ ...styles.th, left: 0, zIndex: 12, width: 44 }}>#</th>
+                <th style={{ ...styles.th, left: 44, zIndex: 12 }}>Part #</th>
                 <th style={styles.th}>Name</th>
                 <th style={styles.th}>Location</th>
                 <th style={{ ...styles.th, textAlign: "right" }}>Avg Price</th>
@@ -154,8 +154,8 @@ export default function FinancialReport() {
                 return (
                   <tr key={p.productID} style={{ borderBottom: "1px solid #222", cursor: "pointer" }}
                     onClick={() => navigate("/products/" + p.productID)}>
-                    <td style={{ ...styles.td, color: "#888" }}>{i + 1}</td>
-                    <td style={{ ...styles.td, color: "#0f0", fontWeight: 500 }}>{p.partNumber}</td>
+                    <td style={{ ...styles.td, color: "#888", position: "sticky", left: 0, background: "#111", zIndex: 3, width: 44 }}>{i + 1}</td>
+                    <td style={{ ...styles.td, color: "#0f0", fontWeight: 500, position: "sticky", left: 44, background: "#111", zIndex: 3 }}>{p.partNumber}</td>
                     <td style={styles.td}>{p.partName}</td>
                     <td style={{ ...styles.td, color: "#888" }}>{loc}</td>
                     <td style={{ ...styles.td, textAlign: "right" }}>{money(p.unitPrice)}</td>

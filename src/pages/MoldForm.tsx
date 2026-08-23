@@ -118,7 +118,7 @@ const MoldForm = ({ onSuccess }: { onSuccess: () => void }) => {
           />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", gap: 16, marginTop: 16 }}>
           <div style={field}>
             <label style={labelStyle}>Shelf Location</label>
             <input
@@ -315,6 +315,8 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 6,
   color: "#fff",
   fontSize: "14px",
+  width: "100%",
+  boxSizing: "border-box",
 };
 const buttonRow: React.CSSProperties = {
   display: "flex",

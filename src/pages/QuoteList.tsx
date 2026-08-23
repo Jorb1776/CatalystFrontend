@@ -71,7 +71,7 @@ const QuoteList: React.FC = () => {
 
   return (
     <div style={{ padding: '20px', backgroundColor: '#111', color: '#0f0', minHeight: '100vh', fontFamily: 'monospace' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #0f0', paddingBottom: '10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #0f0', paddingBottom: '10px', flexWrap: 'wrap', gap: '12px' }}>
         <h1 style={{ margin: 0 }}>Quotes</h1>
         <button
           onClick={() => navigate('/quotes/new')}
@@ -82,8 +82,8 @@ const QuoteList: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '15px', alignItems: 'center' }}>
-        <div style={{ flex: 1 }}>
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
           <input
             type="text"
             placeholder="Search by quote number, customer, or product..."
@@ -209,7 +209,7 @@ const QuoteList: React.FC = () => {
       </div>
 
       {/* Summary */}
-      <div style={{ marginTop: '20px', padding: '15px', border: '1px solid #0f0', display: 'flex', gap: '30px' }}>
+      <div style={{ marginTop: '20px', padding: '15px', border: '1px solid #0f0', display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
         <div>
           <strong>Total Quotes:</strong> {filteredQuotes.length}
         </div>

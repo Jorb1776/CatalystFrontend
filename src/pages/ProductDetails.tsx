@@ -5,6 +5,8 @@ import axios from "../axios";
 import { Product } from "../types/Product";
 import toast from "react-hot-toast";
 import SalesChart from "../components/SalesChart";
+import { canEdit, canDelete } from "../context/AuthContext";
+import { useUserRole } from "../hooks/useUserRole";
 
 interface Checklist {
   checklistID: number;
@@ -22,6 +24,7 @@ export default function ProductDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const userRole = useUserRole();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasQsi, setHasQsi] = useState<boolean | null>(null);
@@ -39,6 +42,15 @@ export default function ProductDetails() {
   const [customerImageUploading, setCustomerImageUploading] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showSalesChart, setShowSalesChart] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 768
+  );
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -300,28 +312,34 @@ export default function ProductDetails() {
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "flex-start",
+            alignItems: isMobile ? "stretch" : "flex-start",
+            flexDirection: isMobile ? "column" : "row",
+            gap: isMobile ? 12 : 0,
           }}
         >
           <div>
-            <h1 style={styles.title}>{product.partName}</h1>
+            <h1 style={{ ...styles.title, fontSize: isMobile ? "1.4rem" : "2rem" }}>{product.partName}</h1>
             <p style={styles.partNumber}>Part #: {product.partNumber}</p>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={() => navigate(`/products/${id}/edit`)} style={styles.editBtn}>
-              Edit
-            </button>
-            <button onClick={handleDelete} style={styles.deleteBtn}>
-              Delete
-            </button>
+            {canEdit(userRole) && (
+              <button onClick={() => navigate(`/products/${id}/edit`)} style={styles.editBtn}>
+                Edit
+              </button>
+            )}
+            {canDelete(userRole) && (
+              <button onClick={handleDelete} style={styles.deleteBtn}>
+                Delete
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       <div style={styles.detailsCard}>
-        <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: isMobile ? 16 : 24, alignItems: "flex-start", flexDirection: isMobile ? "column" : "row" }}>
           {/* Images Column */}
-          <div style={{ minWidth: 220, maxWidth: 280, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ minWidth: isMobile ? "100%" : 220, maxWidth: isMobile ? "100%" : 280, width: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
             {/* Engineering Photos */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -588,28 +606,32 @@ export default function ProductDetails() {
                       {product.qbReorderPoint?.toLocaleString() ?? "—"}
                     </span>
                   </div>
-                  <div style={styles.detail}>
-                    <span style={styles.label}>12-Month Sales</span>
-                    <span style={{ ...styles.value, fontSize: "1.3rem", fontWeight: "bold", color: "#ff0" }}>
-                      {product.qbSales12Months?.toLocaleString() ?? "—"}
-                    </span>
-                  </div>
+                  {canEdit(userRole) && (
+                    <div style={styles.detail}>
+                      <span style={styles.label}>12-Month Sales</span>
+                      <span style={{ ...styles.value, fontSize: "1.3rem", fontWeight: "bold", color: "#ff0" }}>
+                        {product.qbSales12Months?.toLocaleString() ?? "—"}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
-                  <button
-                    onClick={() => setShowSalesChart(true)}
-                    style={{
-                      background: "transparent",
-                      color: "#0af",
-                      border: "1px solid #0af",
-                      borderRadius: 4,
-                      padding: "5px 14px",
-                      cursor: "pointer",
-                      fontSize: "0.8rem",
-                    }}
-                  >
-                    View Sales History
-                  </button>
+                  {canEdit(userRole) && (
+                    <button
+                      onClick={() => setShowSalesChart(true)}
+                      style={{
+                        background: "transparent",
+                        color: "#0af",
+                        border: "1px solid #0af",
+                        borderRadius: 4,
+                        padding: "5px 14px",
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      View Sales History
+                    </button>
+                  )}
                   {product.qbLastSyncDate && (
                     <span style={{ fontSize: "0.7rem", color: "#555" }}>
                       Last synced: {new Date(product.qbLastSyncDate.replace(/Z$/, "") + "Z").toLocaleString()}
@@ -624,7 +646,7 @@ export default function ProductDetails() {
 
       <div style={styles.engineeringSection}>
         <h2 style={styles.sectionTitle}>Engineering Files</h2>
-        <div style={styles.engineeringGrid}>
+        <div style={{ ...styles.engineeringGrid, gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)" }}>
           {/* 2D CAD */}
           {fileExists["2d-cad"] ? (
             <div style={styles.btnWithReplace}>
@@ -854,13 +876,15 @@ export default function ProductDetails() {
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center",
+            alignItems: isMobile ? "flex-start" : "center",
+            flexDirection: isMobile ? "column" : "row",
+            gap: isMobile ? 12 : 0,
             marginBottom: 16,
           }}
         >
           <h3 style={{ color: "#0f0", margin: 0, fontSize: "1.2rem" }}>Insert Photos</h3>
           {product?.moldInsert?.moldId && (
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {product.moldInsert?.moldId && product.moldInsert?.fullNumber && (
                 <Link to={`/molds/${product.moldInsert.moldId}/tool-pictures`} style={{ textDecoration: "none" }}>
                   <button style={styles.engBtn}>View Mold Base</button>

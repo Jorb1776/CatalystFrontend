@@ -6,13 +6,17 @@ interface QBItem {
   id: number;
   name: string;
   fullName?: string;
+  description?: string;
   quantityOnHand: number;
   reorderPoint: number;
   isActive?: boolean;
   matchedProductId?: number | null;
   matchedPartNumber?: string | null;
   moldNumber?: string;
+  preferredVendor?: string;
+  children?: string;
   lastSyncDate?: string;
+  location?: string;
 }
 
 interface CatalystProduct {
@@ -109,7 +113,47 @@ export default function QBInventoryReport() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [view, setView] = useState<ViewType>("unmatched");
   const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [importing, setImporting] = useState(false);
   const navigate = useNavigate();
+
+  // Reset selection when leaving the unmatched view
+  useEffect(() => {
+    if (view !== "unmatched") setSelectedIds(new Set());
+  }, [view]);
+
+  const toggleSelected = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const importSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Import ${selectedIds.size} item(s) into Catalyst as new products?`)) return;
+    setImporting(true);
+    try {
+      const res = await axios.post<{ importedCount: number; errorCount: number; errors?: any[] }>(
+        "/api/qbinventory/import",
+        { qbItemIds: Array.from(selectedIds) }
+      );
+      const { importedCount, errorCount, errors } = res.data;
+      alert(`Imported ${importedCount}. Errors: ${errorCount}.${errorCount > 0 ? "\n\n" + (errors || []).slice(0, 10).map((e: any) => `${e.name}: ${e.message}`).join("\n") : ""}`);
+      setSelectedIds(new Set());
+      // Refresh data
+      const url = "/api/qbinventory/unmatched";
+      const r2 = await axios.get<QBItem[]>(url);
+      setQbItems(r2.data);
+      const sumR = await axios.get<Summary>("/api/qbinventory/summary");
+      setSummary(sumR.data);
+    } catch (err: any) {
+      alert("Import failed: " + (err?.response?.data?.message || err?.message || "Unknown error"));
+    } finally {
+      setImporting(false);
+    }
+  };
 
   useEffect(() => {
     axios.get<Summary>("/api/qbinventory/summary").then(r => setSummary(r.data)).catch(() => {});
@@ -166,69 +210,156 @@ export default function QBInventoryReport() {
 
   const renderTable = () => {
     if (view === "unmatched" || view === "all") {
+      const visibleIds = filteredQB.map(i => i.id);
+      const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.has(id));
+      const colCount = view === "unmatched" ? 10 : 7;
       return (
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-          <thead>
-            <tr>
-              <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("name")}>QB Name{sortArrow("name")}</th>
-              <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("fullName")}>Full Name{sortArrow("fullName")}</th>
-              <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("moldNumber")}>Mold #{sortArrow("moldNumber")}</th>
-              <th style={{ ...styles.th, textAlign: "right", cursor: "pointer" }} onClick={() => toggleSort("quantityOnHand")}>Qty On Hand{sortArrow("quantityOnHand")}</th>
-              <th style={{ ...styles.th, textAlign: "right", cursor: "pointer" }} onClick={() => toggleSort("reorderPoint")}>Reorder Pt{sortArrow("reorderPoint")}</th>
-              {view === "all" && <th style={{ ...styles.th, textAlign: "center", cursor: "pointer" }} onClick={() => toggleSort("matchedProductId")}>Status{sortArrow("matchedProductId")}</th>}
-              <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("lastSyncDate")}>Last Synced{sortArrow("lastSyncDate")}</th>
-              {view === "unmatched" && <th style={styles.th}></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredQB.length === 0 ? (
-              <tr><td colSpan={view === "all" ? 6 : 5} style={styles.empty}>
-                {qbItems.length === 0 ? "No data yet — run a QWC sync first" : "No items match your search"}
-              </td></tr>
-            ) : filteredQB.map(item => (
-              <tr key={item.id} style={{ borderBottom: "1px solid #333" }}>
-                <td style={styles.td}>
-                  <span style={{ color: item.matchedProductId ? "#0f0" : "#f88", fontWeight: 500 }}>{item.name}</span>
-                </td>
-                <td style={{ ...styles.td, color: "#888" }}>{item.fullName || "—"}</td>
-                <td style={{ ...styles.td, color: "#0f0" }}>{item.moldNumber || "—"}</td>
-                <td style={{ ...styles.td, textAlign: "right" }}>{item.quantityOnHand.toLocaleString()}</td>
-                <td style={{ ...styles.td, textAlign: "right" }}>{item.reorderPoint}</td>
-                {view === "all" && (
-                  <td style={{ ...styles.td, textAlign: "center" }}>
-                    {item.matchedProductId ? (
-                      <span style={styles.badgeGreen} title={item.matchedPartNumber ? "Matched to: " + item.matchedPartNumber : ""}>
-                        Matched{item.matchedPartNumber && item.matchedPartNumber.toLowerCase() !== item.name.toLowerCase() ? " → " + item.matchedPartNumber : ""}
-                      </span>
-                    ) : (
-                      <span style={styles.badgeRed}>Missing</span>
-                    )}
-                  </td>
-                )}
-                <td style={{ ...styles.td, color: "#666", fontSize: "0.8rem" }}>
-                  {item.lastSyncDate ? new Date(item.lastSyncDate.replace(/Z$/, "") + "Z").toLocaleString() : "—"}
-                </td>
+        <>
+          {view === "unmatched" && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                onClick={() => setSelectedIds(new Set([...Array.from(selectedIds), ...visibleIds]))}
+                style={selectBtn}
+              >Select All Visible</button>
+              <button
+                onClick={() => setSelectedIds(new Set([...Array.from(selectedIds), ...filteredQB.filter(i => i.reorderPoint > 0).map(i => i.id)]))}
+                style={selectBtn}
+              >+ With Reorder Pt</button>
+              <button
+                onClick={() => setSelectedIds(new Set([...Array.from(selectedIds), ...filteredQB.filter(i => i.moldNumber).map(i => i.id)]))}
+                style={selectBtn}
+              >+ With Mold #</button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                style={{ ...selectBtn, color: "#f88", borderColor: "#f88" }}
+              >Clear</button>
+              <span style={{ color: "#888", fontSize: "0.85rem", marginLeft: 8 }}>
+                {selectedIds.size} selected
+              </span>
+              <div style={{ flex: 1 }} />
+              <button
+                onClick={importSelected}
+                disabled={selectedIds.size === 0 || importing}
+                style={{
+                  background: selectedIds.size > 0 && !importing ? "#0f0" : "#444",
+                  color: selectedIds.size > 0 && !importing ? "#000" : "#888",
+                  border: "none",
+                  padding: "10px 20px",
+                  borderRadius: 6,
+                  fontWeight: "bold",
+                  cursor: selectedIds.size > 0 && !importing ? "pointer" : "not-allowed",
+                  fontSize: "14px",
+                }}
+              >
+                {importing ? "Importing..." : `Import ${selectedIds.size} to Catalyst`}
+              </button>
+            </div>
+          )}
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+            <thead>
+              <tr>
                 {view === "unmatched" && (
-                  <td style={styles.td}>
-                    <select
-                      defaultValue=""
-                      onChange={(e) => { if (e.target.value) dismissItem(item.id, e.target.value); }}
-                      style={{ background: "#333", color: "#fff", border: "1px solid #555", borderRadius: 4, padding: "4px 6px", fontSize: "0.75rem", cursor: "pointer" }}
-                    >
-                      <option value="" disabled>Dismiss...</option>
-                      <option value="Hardware">Hardware</option>
-                      <option value="Packaging">Packaging</option>
-                      <option value="Raw Material">Raw Material</option>
-                      <option value="Discontinued">Discontinued</option>
-                      <option value="Service/Misc">Service/Misc</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </td>
+                  <th style={{ ...styles.th, width: 36, textAlign: "center", left: 0, zIndex: 12 }}>
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={() => {
+                        if (allVisibleSelected) {
+                          const next = new Set(selectedIds);
+                          visibleIds.forEach(id => next.delete(id));
+                          setSelectedIds(next);
+                        } else {
+                          setSelectedIds(new Set([...Array.from(selectedIds), ...visibleIds]));
+                        }
+                      }}
+                    />
+                  </th>
                 )}
+                <th style={{ ...styles.th, cursor: "pointer", left: view === "unmatched" ? 36 : 0, zIndex: 12, width: 120, maxWidth: 120 }} onClick={() => toggleSort("name")}>QB Name{sortArrow("name")}</th>
+                <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("description")}>Description{sortArrow("description")}</th>
+                <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("moldNumber")}>Mold #{sortArrow("moldNumber")}</th>
+                {view === "unmatched" && (
+                  <>
+                    <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("location")}>Location{sortArrow("location")}</th>
+                    <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("preferredVendor")}>Pref Vendor{sortArrow("preferredVendor")}</th>
+                    <th style={{ ...styles.th, textAlign: "center" }}>Asm</th>
+                  </>
+                )}
+                <th style={{ ...styles.th, textAlign: "right", cursor: "pointer" }} onClick={() => toggleSort("quantityOnHand")}>Qty On Hand{sortArrow("quantityOnHand")}</th>
+                <th style={{ ...styles.th, textAlign: "right", cursor: "pointer" }} onClick={() => toggleSort("reorderPoint")}>Reorder Pt{sortArrow("reorderPoint")}</th>
+                {view === "all" && <th style={{ ...styles.th, textAlign: "center", cursor: "pointer" }} onClick={() => toggleSort("matchedProductId")}>Status{sortArrow("matchedProductId")}</th>}
+                <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("lastSyncDate")}>Last Synced{sortArrow("lastSyncDate")}</th>
+                {view === "unmatched" && <th style={styles.th}></th>}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredQB.length === 0 ? (
+                <tr><td colSpan={colCount} style={styles.empty}>
+                  {qbItems.length === 0 ? "No data yet — run a QWC sync first" : "No items match your search"}
+                </td></tr>
+              ) : filteredQB.map(item => (
+                <tr key={item.id} style={{ borderBottom: "1px solid #333" }}>
+                  {view === "unmatched" && (
+                    <td style={{ ...styles.td, textAlign: "center", position: "sticky", left: 0, background: "#111", zIndex: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(item.id)}
+                        onChange={() => toggleSelected(item.id)}
+                      />
+                    </td>
+                  )}
+                  <td style={{ ...styles.td, position: "sticky", left: view === "unmatched" ? 36 : 0, background: "#111", zIndex: 4, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.name}>
+                    <span style={{ color: item.matchedProductId ? "#0f0" : "#f88", fontWeight: 500 }}>{item.name}</span>
+                  </td>
+                  <td style={{ ...styles.td, color: item.description ? "#ddd" : "#555" }}>{item.description || "—"}</td>
+                  <td style={{ ...styles.td, color: "#0f0" }}>{item.moldNumber || "—"}</td>
+                  {view === "unmatched" && (
+                    <>
+                      <td style={{ ...styles.td, color: item.location === "IN" ? "#0f0" : item.location === "TN" ? "#ff0" : "#555" }}>
+                        {item.location === "IN" ? "Indiana" : item.location === "TN" ? "Tennessee" : item.location || "—"}
+                      </td>
+                      <td style={{ ...styles.td, color: item.preferredVendor ? "#fff" : "#555" }}>{item.preferredVendor || "—"}</td>
+                      <td style={{ ...styles.td, textAlign: "center", color: item.children ? "#0ff" : "#555" }}>{item.children ? "Yes" : "—"}</td>
+                    </>
+                  )}
+                  <td style={{ ...styles.td, textAlign: "right" }}>{item.quantityOnHand.toLocaleString()}</td>
+                  <td style={{ ...styles.td, textAlign: "right" }}>{item.reorderPoint}</td>
+                  {view === "all" && (
+                    <td style={{ ...styles.td, textAlign: "center" }}>
+                      {item.matchedProductId ? (
+                        <span style={styles.badgeGreen} title={item.matchedPartNumber ? "Matched to: " + item.matchedPartNumber : ""}>
+                          Matched{item.matchedPartNumber && item.matchedPartNumber.toLowerCase() !== item.name.toLowerCase() ? " → " + item.matchedPartNumber : ""}
+                        </span>
+                      ) : (
+                        <span style={styles.badgeRed}>Missing</span>
+                      )}
+                    </td>
+                  )}
+                  <td style={{ ...styles.td, color: "#666", fontSize: "0.8rem" }}>
+                    {item.lastSyncDate ? new Date(item.lastSyncDate.replace(/Z$/, "") + "Z").toLocaleString() : "—"}
+                  </td>
+                  {view === "unmatched" && (
+                    <td style={styles.td}>
+                      <select
+                        defaultValue=""
+                        onChange={(e) => { if (e.target.value) dismissItem(item.id, e.target.value); }}
+                        style={{ background: "#333", color: "#fff", border: "1px solid #555", borderRadius: 4, padding: "4px 6px", fontSize: "0.75rem", cursor: "pointer" }}
+                      >
+                        <option value="" disabled>Dismiss...</option>
+                        <option value="Hardware">Hardware</option>
+                        <option value="Packaging">Packaging</option>
+                        <option value="Raw Material">Raw Material</option>
+                        <option value="Discontinued">Discontinued</option>
+                        <option value="Service/Misc">Service/Misc</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       );
     }
 
@@ -581,7 +712,7 @@ export default function QBInventoryReport() {
       {showBackToTop && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          style={{ position: "fixed", bottom: 30, right: 30, width: 65, height: 55, background: "#0f0", color: "#000", border: "none", borderRadius: "25%", fontSize: "13px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 10px rgba(0, 255, 0, 0.4)", zIndex: 999, transition: "all 0.3s ease" }}
+          style={{ position: "fixed", bottom: 96, right: 24, width: 65, height: 55, background: "#0f0", color: "#000", border: "none", borderRadius: "25%", fontSize: "13px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 10px rgba(0, 255, 0, 0.4)", zIndex: 999, transition: "all 0.3s ease" }}
           onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
           onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >Back to Top</button>
@@ -610,4 +741,14 @@ const styles = {
   badgeGreen: { background: "#1a3d1a", color: "#0f0", padding: "2px 8px", borderRadius: 4, fontSize: "0.75rem", border: "1px solid #0f0" } as React.CSSProperties,
   badgeRed: { background: "#3d1a1a", color: "#f44", padding: "2px 8px", borderRadius: 4, fontSize: "0.75rem", border: "1px solid #f44" } as React.CSSProperties,
   badgeYellow: { background: "#3d3d1a", color: "#ff0", padding: "2px 8px", borderRadius: 4, fontSize: "0.75rem", border: "1px solid #ff0" } as React.CSSProperties,
+};
+
+const selectBtn: React.CSSProperties = {
+  background: "transparent",
+  color: "#0ff",
+  border: "1px solid #0ff",
+  padding: "6px 12px",
+  borderRadius: 4,
+  cursor: "pointer",
+  fontSize: "0.8rem",
 };

@@ -17,13 +17,32 @@ api.defaults.withCredentials = true;
 api.interceptors.request.use((config: any) => {
 
   const token = localStorage.getItem('token');
+  const role = localStorage.getItem('role');
+  const method = config.method?.toLowerCase();
+  const url = config.url || '';
+
   const isPublicEndpoint =
-    (config.method?.toLowerCase() === 'get' &&
-    /^\/api\/products(\/\d+)?$/.test(config.url || '')) ||
-    config.url?.includes('/api/auth/login') ||
-    config.url?.includes('/api/auth/refresh') ||
-    config.url?.includes('/api/auth/2fa') ||
-    config.url?.includes('/api/ping');
+    (method === 'get' &&
+    /^\/api\/products(\/\d+)?$/.test(url)) ||
+    url.includes('/api/auth/login') ||
+    url.includes('/api/auth/refresh') ||
+    url.includes('/api/auth/2fa') ||
+    url.includes('/api/ping');
+
+  // Block writes for "User" role (read-only). Auth endpoints stay open.
+  const isAuthEndpoint =
+    url.includes('/api/auth/login') ||
+    url.includes('/api/auth/refresh') ||
+    url.includes('/api/auth/logout') ||
+    url.includes('/api/auth/2fa') ||
+    url.includes('/api/auth/change-password');
+  // Allow all roles (including read-only "User") to submit site feedback.
+  const isFeedbackSubmit = method === 'post' && url.includes('/api/feedback');
+  const isWrite = method === 'post' || method === 'put' || method === 'patch' || method === 'delete';
+  if (role === 'User' && isWrite && !isAuthEndpoint && !isFeedbackSubmit) {
+    console.warn(`[AXIOS] Blocked ${method?.toUpperCase()} ${url} for read-only User role`);
+    return Promise.reject({ response: { status: 403, data: { message: 'Read-only role' } }, message: 'Read-only role' });
+  }
 
   if (token && !isPublicEndpoint) {
     config.headers = config.headers || {};

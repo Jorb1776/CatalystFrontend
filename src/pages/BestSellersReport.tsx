@@ -32,6 +32,15 @@ export default function BestSellersReport() {
   const [metric, setMetric] = useState<Metric>("revenue");
   const [topN, setTopN] = useState(10);
   const navigate = useNavigate();
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 768
+  );
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     axios.get<BestSeller[]>("/api/products/best-sellers").then(r => setProducts(r.data)).catch(() => {});
@@ -104,7 +113,7 @@ export default function BestSellersReport() {
       </div>
 
       <div style={{ background: "#111", border: "1px solid #333", borderRadius: 8, padding: 20, marginBottom: 24 }}>
-        <ResponsiveContainer width="100%" height={view === "bar" ? Math.max(300, topN * 28) : 500}>
+        <ResponsiveContainer width="100%" height={view === "bar" ? Math.max(300, topN * 28) : (isMobile ? 340 : 500)}>
           {view === "bar" ? (
             <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 30, left: 70, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -131,9 +140,9 @@ export default function BestSellersReport() {
                 nameKey="name"
                 cx="50%"
                 cy="50%"
-                outerRadius={180}
-                label={(e: any) => `${e.name} (${((e.value / (totalAll || 1)) * 100).toFixed(1)}%)`}
-                labelLine={{ stroke: "#888" }}
+                outerRadius={isMobile ? 95 : 180}
+                label={isMobile ? false : (e: any) => `${e.name} (${((e.value / (totalAll || 1)) * 100).toFixed(1)}%)`}
+                labelLine={isMobile ? false : { stroke: "#888" }}
               >
                 {pieData.map((_, i) => (
                   <Cell key={i} fill={COLORS[i % COLORS.length]} />

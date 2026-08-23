@@ -73,8 +73,10 @@ export const WorkOrderCard = ({ wo, navigate }: WorkOrderCardProps) => {
       setNewDropNotes("");
       loadDropShips();
       toast.success("Drop ship logged");
-    } catch {
-      toast.error("Failed to log drop ship");
+    } catch (err: any) {
+      console.error("[DropShip] add failed:", err?.response?.status, err?.response?.data, err);
+      const msg = err?.response?.data?.message || err?.response?.data || err?.message || "Failed to log drop ship";
+      toast.error(`Drop ship failed: ${typeof msg === "string" ? msg : JSON.stringify(msg)}`);
     }
   };
 

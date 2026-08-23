@@ -54,6 +54,7 @@ export default function ProductForm({
     colorantId: "",
     moldId: "",
     insertCode: "",
+    colorCode: "",
     batchSize: "",
     note: "",
     boxSize: "",
@@ -109,6 +110,7 @@ export default function ProductForm({
             colorantId: p.colorant?.colorantID?.toString() || "",
             moldId: p.moldInsert?.moldId?.toString() || "",
             insertCode: p.moldInsert?.insertCode || "",
+            colorCode: p.moldInsert?.colorCode || "",
             batchSize: p.batchSize?.toString() || "",
             note: p.note || "",
             boxSize: p.boxSize || "",
@@ -144,6 +146,7 @@ export default function ProductForm({
       colorantID: form.colorantId ? +form.colorantId : null,
       moldId: form.moldId ? +form.moldId : null,
       insertCode: form.insertCode || null,
+      colorCode: form.colorCode || null,
       batchSize: +form.batchSize || 0,
       note: form.note,
       boxSize: form.boxSize,
@@ -325,16 +328,29 @@ export default function ProductForm({
             </>
           )}
         </div>
-        <div style={field}>
-          <label>Insert Code</label>
-          <input
-            value={form.insertCode}
-            onChange={(e) =>
-              setForm({ ...form, insertCode: e.target.value.toUpperCase() })
-            }
-            placeholder="e.g. A, B, C"
-            style={inputStyle}
-          />
+        <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ ...field, flex: 1 }}>
+            <label>Insert Code</label>
+            <input
+              value={form.insertCode}
+              onChange={(e) =>
+                setForm({ ...form, insertCode: e.target.value.toUpperCase() })
+              }
+              placeholder="e.g. A, B, C"
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ ...field, flex: 1 }}>
+            <label>Color Code</label>
+            <input
+              value={form.colorCode}
+              onChange={(e) =>
+                setForm({ ...form, colorCode: e.target.value.toUpperCase() })
+              }
+              placeholder="e.g. 01, 02"
+              style={inputStyle}
+            />
+          </div>
         </div>
 
         <div style={field}>

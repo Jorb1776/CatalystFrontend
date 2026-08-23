@@ -16,6 +16,8 @@ interface ProductAlert {
   monthsUntilReorder: number | null;
   urgency: "critical" | "warning" | "watch";
   moldLocation?: string;
+  moldNumber?: string;
+  preferredVendor?: string;
 }
 
 interface FinancialProduct {
@@ -49,6 +51,15 @@ export default function Reports() {
     const handleScroll = () => setShowBackToTop(window.scrollY > 500);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 768
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
   const [reorderSortKey, setReorderSortKey] = useState<keyof ProductAlert | "urgencyOrder">("urgencyOrder");
   const [reorderSortDir, setReorderSortDir] = useState<"asc" | "desc">("asc");
@@ -84,6 +95,14 @@ export default function Reports() {
           return x.toUpperCase();
         };
         const catalystNormalized = new Set<string>(prodRes.data.map((p: any) => normalize(p.partNumber)));
+        // Build QB lookup: normalized part name -> QB item (for vendor + mold number on Catalyst products)
+        const qbLookup = new Map<string, any>();
+        for (const q of (qbRes.data || [])) {
+          const k = normalize(q.name);
+          if (k && !qbLookup.has(k)) qbLookup.set(k, q);
+          const k2 = normalize(q.fullName);
+          if (k2 && !qbLookup.has(k2)) qbLookup.set(k2, q);
+        }
 
         const catalystAlerts = prodRes.data
           .filter((p: any) => p.qbReorderPoint > 0 && p.qbQuantityOnHand >= 0 && p.qbIsActive !== false)
@@ -108,6 +127,7 @@ export default function Reports() {
             if (available <= reorder) urgency = "critical";
             else if (monthsLeft !== null && monthsLeft < 2) urgency = "warning";
 
+            const qbMatch = qbLookup.get(normalize(p.partNumber));
             return {
               productID: p.productID,
               partNumber: p.partNumber,
@@ -122,6 +142,8 @@ export default function Reports() {
               monthsUntilReorder: monthsLeft !== null ? Math.round(monthsLeft * 10) / 10 : null,
               urgency,
               moldLocation: p.moldInsert?.mold?.physicalLocation,
+              moldNumber: p.moldInsert?.mold?.baseNumber || qbMatch?.moldNumber,
+              preferredVendor: qbMatch?.preferredVendor,
             } as ProductAlert;
           });
 
@@ -157,6 +179,8 @@ export default function Reports() {
               monthsUntilReorder: monthsLeft,
               urgency,
               moldLocation: undefined,
+              moldNumber: q.moldNumber,
+              preferredVendor: q.preferredVendor,
             } as ProductAlert;
           });
 
@@ -244,7 +268,7 @@ export default function Reports() {
       {showBackToTop && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          style={{ position: "fixed", bottom: 30, right: 30, width: 65, height: 55, background: "#0f0", color: "#000", border: "none", borderRadius: "25%", fontSize: "13px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 10px rgba(0, 255, 0, 0.4)", zIndex: 999, transition: "all 0.3s ease" }}
+          style={{ position: "fixed", bottom: 96, right: 24, width: 65, height: 55, background: "#0f0", color: "#000", border: "none", borderRadius: "25%", fontSize: "13px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 10px rgba(0, 255, 0, 0.4)", zIndex: 999, transition: "all 0.3s ease" }}
           onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
           onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >Back to Top</button>
@@ -261,6 +285,8 @@ export default function Reports() {
           gap: 0,
           borderBottom: "2px solid #333",
           marginBottom: 24,
+          flexWrap: "wrap",
+          overflowX: "auto",
         }}
       >
         {tabs.map((tab) => (
@@ -288,7 +314,7 @@ export default function Reports() {
       {activeTab === "reorder" && (
         <div>
           {/* Summary Cards */}
-          <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
+          <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
             <div
               style={{
                 flex: 1,
@@ -364,14 +390,14 @@ export default function Reports() {
               const rows = urgent.map(a => {
                 const loc = a.moldLocation === "IN" ? "Indiana" : a.moldLocation === "TN" ? "Tennessee" : a.moldLocation || "—";
                 const ml = a.monthsUntilReorder === null ? "—" : a.monthsUntilReorder <= 0 ? "NOW" : a.monthsUntilReorder.toFixed(1);
-                return "<tr><td class=\"" + a.urgency + "\">" + a.urgency.toUpperCase() + "</td><td>" + a.partNumber + "</td><td>" + a.partName + "</td><td>" + loc + "</td><td class=\"right\">" + a.qbQuantityOnHand.toLocaleString() + "</td><td class=\"right\">" + a.qbOnOrder + "</td><td class=\"right\">" + (a.qbOnPurchaseOrder || "—") + "</td><td class=\"right\">" + a.available + "</td><td class=\"right\">" + a.qbReorderPoint + "</td><td class=\"right\">" + a.avgMonthlySales + "</td><td class=\"right\">" + ml + "</td></tr>";
+                return "<tr><td class=\"" + a.urgency + "\">" + a.urgency.toUpperCase() + "</td><td>" + a.partNumber + "</td><td>" + a.partName + "</td><td>" + (a.moldNumber || "—") + "</td><td>" + (a.preferredVendor || "—") + "</td><td>" + loc + "</td><td class=\"right\">" + a.qbQuantityOnHand.toLocaleString() + "</td><td class=\"right\">" + a.qbOnOrder + "</td><td class=\"right\">" + (a.qbOnPurchaseOrder || "—") + "</td><td class=\"right\">" + a.available + "</td><td class=\"right\">" + a.qbReorderPoint + "</td><td class=\"right\">" + a.avgMonthlySales + "</td><td class=\"right\">" + ml + "</td></tr>";
               }).join("");
               const selectedLabels: string[] = [];
               if (showCritical) selectedLabels.push("Critical");
               if (showWarning) selectedLabels.push("Warning");
               if (showWatch) selectedLabels.push("Watch");
               const reportTitle = selectedLabels.join(" &amp; ") + " Reorder Report";
-              const html = "<html><head><title>" + reportTitle + "</title><style>@page{margin:0.4in}body{font-family:Arial,sans-serif;margin:0;font-size:10px}h2{margin:0 0 2px;font-size:14px}p.date{color:#666;font-size:9px;margin:0 0 6px}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#1a6b1a;color:white;padding:3px 5px;text-align:left;font-size:9px}th.right{text-align:right}td{padding:2px 5px;border-bottom:1px solid #ddd;line-height:1.2}td.right{text-align:right}tr:nth-child(even){background:#f5f5f5}.critical{color:#c00;font-weight:bold}.warning{color:#d90;font-weight:bold}.watch{color:#070;font-weight:bold}</style></head><body><h2>" + reportTitle + "</h2><p class=\"date\">Printed: " + new Date().toLocaleString() + " | " + urgent.length + " items</p><table><thead><tr><th>Status</th><th>Part #</th><th>Name</th><th>Loc</th><th class=\"right\">OH</th><th class=\"right\">Com</th><th class=\"right\">PO</th><th class=\"right\">Avail</th><th class=\"right\">Reorder</th><th class=\"right\">Avg/Mo</th><th class=\"right\">Mo Left</th></tr></thead><tbody>" + rows + "</tbody></table></body></html>";
+              const html = "<html><head><title>" + reportTitle + "</title><style>@page{margin:0.4in}body{font-family:Arial,sans-serif;margin:0;font-size:10px}h2{margin:0 0 2px;font-size:14px}p.date{color:#666;font-size:9px;margin:0 0 6px}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#1a6b1a;color:white;padding:3px 5px;text-align:left;font-size:9px}th.right{text-align:right}td{padding:2px 5px;border-bottom:1px solid #ddd;line-height:1.2}td.right{text-align:right}tr:nth-child(even){background:#f5f5f5}.critical{color:#c00;font-weight:bold}.warning{color:#d90;font-weight:bold}.watch{color:#070;font-weight:bold}</style></head><body><h2>" + reportTitle + "</h2><p class=\"date\">Printed: " + new Date().toLocaleString() + " | " + urgent.length + " items</p><table><thead><tr><th>Status</th><th>Part #</th><th>Description</th><th>Mold #</th><th>Pref Vendor</th><th>Loc</th><th class=\"right\">OH</th><th class=\"right\">Com</th><th class=\"right\">PO</th><th class=\"right\">Avail</th><th class=\"right\">Reorder</th><th class=\"right\">Avg/Mo</th><th class=\"right\">Mo Left</th></tr></thead><tbody>" + rows + "</tbody></table></body></html>";
               printWindow.document.write(html);
               printWindow.document.close();
               printWindow.print();
@@ -508,9 +534,13 @@ export default function Reports() {
               >
                 <thead>
                   <tr style={{ borderBottom: "2px solid #333" }}>
-                    <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("urgencyOrder")}>Status{reorderArrow("urgencyOrder")}</th>
-                    <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("partNumber")}>Part #{reorderArrow("partNumber")}</th>
-                    <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("partName")}>Name{reorderArrow("partName")}</th>
+                    {!isMobile && (
+                      <th style={{ ...thStyle, cursor: "pointer", left: 0, zIndex: 12, width: 92 }} onClick={() => toggleReorderSort("urgencyOrder")}>Status{reorderArrow("urgencyOrder")}</th>
+                    )}
+                    <th style={{ ...thStyle, cursor: "pointer", left: isMobile ? 0 : 92, zIndex: 12 }} onClick={() => toggleReorderSort("partNumber")}>Part #{reorderArrow("partNumber")}</th>
+                    <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("partName")}>Description{reorderArrow("partName")}</th>
+                    <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("moldNumber")}>Mold #{reorderArrow("moldNumber")}</th>
+                    <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("preferredVendor")}>Pref Vendor{reorderArrow("preferredVendor")}</th>
                     <th style={{ ...thStyle, cursor: "pointer" }} onClick={() => toggleReorderSort("moldLocation")}>Location{reorderArrow("moldLocation")}</th>
                     <th style={{ ...thStyle, textAlign: "right", cursor: "pointer" }} onClick={() => toggleReorderSort("qbQuantityOnHand")}>On Hand{reorderArrow("qbQuantityOnHand")}</th>
                     <th style={{ ...thStyle, textAlign: "right", cursor: "pointer" }} onClick={() => toggleReorderSort("qbOnOrder")}>Committed{reorderArrow("qbOnOrder")}</th>
@@ -562,26 +592,30 @@ export default function Reports() {
                           (e.currentTarget.style.background = colors.bg)
                         }
                       >
-                        <td style={tdStyle}>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "2px 8px",
-                              borderRadius: 4,
-                              fontSize: "0.7rem",
-                              fontWeight: "bold",
-                              color: colors.text,
-                              border: `1px solid ${colors.border}`,
-                              letterSpacing: 1,
-                            }}
-                          >
-                            {colors.label}
-                          </span>
-                        </td>
-                        <td style={{ ...tdStyle, color: "#0f0", fontWeight: "bold" }}>
+                        {!isMobile && (
+                          <td style={{ ...tdStyle, position: "sticky", left: 0, background: colors.bg, zIndex: 3, width: 92 }}>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "2px 8px",
+                                borderRadius: 4,
+                                fontSize: "0.7rem",
+                                fontWeight: "bold",
+                                color: colors.text,
+                                border: `1px solid ${colors.border}`,
+                                letterSpacing: 1,
+                              }}
+                            >
+                              {colors.label}
+                            </span>
+                          </td>
+                        )}
+                        <td style={{ ...tdStyle, color: "#0f0", fontWeight: "bold", position: "sticky", left: isMobile ? 0 : 92, background: colors.bg, zIndex: 3 }}>
                           {alert.partNumber}
                         </td>
                         <td style={tdStyle}>{alert.partName}</td>
+                        <td style={{ ...tdStyle, color: alert.moldNumber ? "#0ff" : "#555" }}>{alert.moldNumber || "—"}</td>
+                        <td style={{ ...tdStyle, color: alert.preferredVendor ? "#fff" : "#555" }}>{alert.preferredVendor || "—"}</td>
                         <td style={tdStyle}>
                           {alert.moldLocation === "IN"
                             ? "Indiana"
@@ -644,7 +678,7 @@ export default function Reports() {
       {activeTab === "financial" && (
         <div>
           {/* Summary Cards */}
-          <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
+          <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
             <div style={{ flex: 1, background: "#1a2a1a", border: "1px solid #2a3a2a", borderRadius: 8, padding: "12px 20px" }}>
               <p style={{ margin: 0, color: "#6a6", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: 1 }}>
                 Est. 12-Month Revenue
@@ -708,8 +742,8 @@ export default function Reports() {
               <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: "0.9rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "2px solid #333" }}>
-                    <th style={thStyle}>#</th>
-                    <th style={thStyle}>Part #</th>
+                    <th style={{ ...thStyle, left: 0, zIndex: 12, width: 44 }}>#</th>
+                    <th style={{ ...thStyle, left: 44, zIndex: 12 }}>Part #</th>
                     <th style={thStyle}>Name</th>
                     <th style={thStyle}>Location</th>
                     <th style={{ ...thStyle, textAlign: "right" }}>Unit Price</th>
@@ -737,8 +771,8 @@ export default function Reports() {
                         onMouseEnter={(e) => (e.currentTarget.style.background = "#222")}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                       >
-                        <td style={{ ...tdStyle, color: "#555", fontSize: "0.8rem" }}>{i + 1}</td>
-                        <td style={{ ...tdStyle, color: "#0f0", fontWeight: "bold" }}>{p.partNumber}</td>
+                        <td style={{ ...tdStyle, color: "#555", fontSize: "0.8rem", position: "sticky", left: 0, background: "#111", zIndex: 3, width: 44 }}>{i + 1}</td>
+                        <td style={{ ...tdStyle, color: "#0f0", fontWeight: "bold", position: "sticky", left: 44, background: "#111", zIndex: 3 }}>{p.partNumber}</td>
                         <td style={tdStyle}>{p.partName}</td>
                         <td style={tdStyle}>
                           {p.moldLocation === "IN" ? "Indiana" : p.moldLocation === "TN" ? "Tennessee" : p.moldLocation || "—"}

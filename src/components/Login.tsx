@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [tempUsername, setTempUsername] = useState("");
@@ -76,14 +77,36 @@ export default function Login() {
             autoFocus
             disabled={isLoading}
           />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={inputStyle}
-            disabled={isLoading}
-          />
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ ...inputStyle, paddingRight: 44, width: "100%", boxSizing: "border-box" }}
+              disabled={isLoading}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(s => !s)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              style={{
+                position: "absolute",
+                right: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "transparent",
+                border: "none",
+                color: "#888",
+                cursor: "pointer",
+                fontSize: 18,
+                padding: 4,
+                lineHeight: 1,
+              }}
+            >
+              {showPassword ? "🙈" : "👁"}
+            </button>
+          </div>
           <button type="submit" style={btnStyle} disabled={isLoading}>
             {isLoading ? "Logging in..." : "Login"}
           </button>

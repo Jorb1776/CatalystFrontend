@@ -72,6 +72,7 @@ import QBInventoryReport from "./pages/QBInventoryReport";
 import ReceivablesReport from "./pages/ReceivablesReport";
 import BestSellersReport from "./pages/BestSellersReport";
 import FinancialReport from "./pages/FinancialReport";
+import FeedbackWidget from "./components/FeedbackWidget";
 
 import { AuthProvider, useAuth, LOCATIONS } from "./context/AuthContext";
 
@@ -205,7 +206,7 @@ function AppContent() {
               <Link to="/floor" style={navLink}>Floor</Link>
               <Link to="/molds" style={navLink}>Molds</Link>
               <Link to="/machines" style={navLink}>Machines</Link>
-              {userRole === "Admin" && (
+              {(userRole === "Admin" || userRole === "Manager") && (
                 <div style={{ position: "relative", display: "inline-block" }}>
                   <button
                     onClick={() => setShowAdminMenu((prev) => !prev)}
@@ -221,7 +222,7 @@ function AppContent() {
                       gap: 4,
                     }}
                   >
-                    Admin <span style={{ fontSize: "0.75em" }}>{showAdminMenu ? "▲" : "▼"}</span>
+                    {userRole === "Admin" ? "Admin" : "Reports"} <span style={{ fontSize: "0.75em" }}>{showAdminMenu ? "▲" : "▼"}</span>
                   </button>
 
                   {showAdminMenu && (
@@ -241,7 +242,7 @@ function AppContent() {
                       }}
                       onMouseLeave={() => setShowAdminMenu(false)}
                     >
-                      {[
+                      {(userRole === "Admin" ? [
                         { type: "header", label: "QuickBooks" },
                         { to: "/reports", label: "Reports" },
                         { to: "/qb-inventory", label: "QB Inventory" },
@@ -256,7 +257,12 @@ function AppContent() {
                         { to: "/upload-bulk", label: "Bulk Upload" },
                         { type: "header", label: "System" },
                         { to: "/users", label: "Users" },
-                      ].map((item, idx) => {
+                      ] : [
+                        { type: "header", label: "QuickBooks" },
+                        { to: "/reports", label: "Reports" },
+                        { to: "/qb-inventory", label: "QB Inventory" },
+                        { to: "/receivables", label: "Receivables" },
+                      ]).map((item, idx) => {
                         if (item.type === "header") {
                           return (
                             <div
@@ -385,23 +391,27 @@ function AppContent() {
                 <Link to="/floor" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Floor</Link>
                 <Link to="/molds" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Molds</Link>
                 <Link to="/machines" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Machines</Link>
-                {userRole === "Admin" && (
+                {(userRole === "Admin" || userRole === "Manager") && (
                   <>
-                    <div style={{ ...mobileNavLink, color: "#0ff", fontWeight: "bold", cursor: "default" }}>Admin</div>
+                    <div style={{ ...mobileNavLink, color: "#0ff", fontWeight: "bold", cursor: "default" }}>{userRole === "Admin" ? "Admin" : "Reports"}</div>
                     <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  QuickBooks</div>
                     <Link to="/reports" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Reports</Link>
                     <Link to="/qb-inventory" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • QB Inventory</Link>
                     <Link to="/receivables" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Receivables</Link>
-                    <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  Financial</div>
-                    <Link to="/financial" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Financial Report</Link>
-                    <Link to="/best-sellers" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Best Sellers</Link>
-                    <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  Management</div>
-                    <Link to="/quotes" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Quotes</Link>
-                    <Link to="/customers" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Customers</Link>
-                    <Link to="/inventory" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Inventory</Link>
-                    <Link to="/upload-bulk" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Bulk Upload</Link>
-                    <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  System</div>
-                    <Link to="/users" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Users</Link>
+                    {userRole === "Admin" && (
+                      <>
+                        <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  Financial</div>
+                        <Link to="/financial" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Financial Report</Link>
+                        <Link to="/best-sellers" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Best Sellers</Link>
+                        <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  Management</div>
+                        <Link to="/quotes" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Quotes</Link>
+                        <Link to="/customers" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Customers</Link>
+                        <Link to="/inventory" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Inventory</Link>
+                        <Link to="/upload-bulk" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Bulk Upload</Link>
+                        <div style={{ ...mobileNavLink, color: "#0ff", fontSize: "0.75rem", textTransform: "uppercase", cursor: "default", paddingTop: 8 }}>  System</div>
+                        <Link to="/users" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>    • Users</Link>
+                      </>
+                    )}
                   </>
                 )}
                 <Link to="/settings" style={mobileNavLink} onClick={() => setShowMobileMenu(false)}>Account</Link>
@@ -453,6 +463,7 @@ function AppContent() {
                 }
                 .main-content {
                   padding: 10px !important;
+                  padding-bottom: 96px !important;
                   max-width: 100vw !important;
                 }
               }
@@ -522,9 +533,9 @@ function AppContent() {
               <Route path="/machines/:id" element={<MachineForm />} />
 
               <Route path="/settings" element={<UserSettings />} />
-              {userRole === "Admin" && <Route path="/reports" element={<Reports />} />}
-              {userRole === "Admin" && <Route path="/qb-inventory" element={<QBInventoryReport />} />}
-              {userRole === "Admin" && <Route path="/receivables" element={<ReceivablesReport />} />}
+              {(userRole === "Admin" || userRole === "Manager") && <Route path="/reports" element={<Reports />} />}
+              {(userRole === "Admin" || userRole === "Manager") && <Route path="/qb-inventory" element={<QBInventoryReport />} />}
+              {(userRole === "Admin" || userRole === "Manager") && <Route path="/receivables" element={<ReceivablesReport />} />}
               {userRole === "Admin" && <Route path="/best-sellers" element={<BestSellersReport />} />}
               {userRole === "Admin" && <Route path="/financial" element={<FinancialReport />} />}
 
@@ -658,6 +669,7 @@ function AppContent() {
               <Route path="*" element={<Navigate to="/floor" />} />
             </Routes>
           </div>
+          <FeedbackWidget />
         </>
       ) : (
         <Routes>

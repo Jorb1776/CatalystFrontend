@@ -111,32 +111,17 @@ export default function ReceivablesReport() {
   return (
     <div style={{ padding: 20, maxWidth: 1200, margin: "0 auto" }}>
       <button onClick={() => navigate(-1)} style={styles.backBtn}>← Back</button>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <h2 style={{ color: "#0f0", margin: 0, fontSize: "1.8rem" }}>Accounts Receivable Report</h2>
         <button onClick={printReport} style={styles.printBtn}>Print</button>
       </div>
 
       {summary && (
         <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-          <div style={{ ...styles.card, borderColor: "#0f0", cursor: "pointer" }} onClick={() => setFilter("all")}>
-            <p style={styles.cardLabel}>Total Open</p>
-            <p style={{ ...styles.cardValue, color: "#0f0" }}>{money(summary.totalAmount)}</p>
-            <p style={styles.cardSub}>{summary.totalCount} invoices</p>
-          </div>
           <div style={{ ...styles.card, borderColor: "#f44", cursor: "pointer" }} onClick={() => setFilter("pastdue")}>
-            <p style={styles.cardLabel}>Past Due</p>
+            <p style={styles.cardLabel}>Past Due (40+ days)</p>
             <p style={{ ...styles.cardValue, color: "#f44" }}>{money(summary.pastDueAmount)}</p>
             <p style={styles.cardSub}>{summary.pastDueCount} invoices</p>
-          </div>
-          <div style={{ ...styles.card, cursor: "pointer" }} onClick={() => setFilter("current")}>
-            <p style={styles.cardLabel}>Current</p>
-            <p style={{ ...styles.cardValue, color: "#0f0" }}>{money(summary.current.amount)}</p>
-            <p style={styles.cardSub}>{summary.current.count} invoices</p>
-          </div>
-          <div style={{ ...styles.card, borderColor: "#d90", cursor: "pointer" }} onClick={() => setFilter("d30")}>
-            <p style={styles.cardLabel}>1-30 Days</p>
-            <p style={{ ...styles.cardValue, color: "#ff0" }}>{money(summary.days1to30.amount)}</p>
-            <p style={styles.cardSub}>{summary.days1to30.count} invoices</p>
           </div>
           <div style={{ ...styles.card, borderColor: "#f70", cursor: "pointer" }} onClick={() => setFilter("d60")}>
             <p style={styles.cardLabel}>31-60 Days</p>
@@ -172,7 +157,7 @@ export default function ReceivablesReport() {
       {showBackToTop && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          style={{ position: "fixed", bottom: 30, right: 30, width: 65, height: 55, background: "#0f0", color: "#000", border: "none", borderRadius: "25%", fontSize: "13px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 10px rgba(0, 255, 0, 0.4)", zIndex: 999, transition: "all 0.3s ease" }}
+          style={{ position: "fixed", bottom: 96, right: 24, width: 65, height: 55, background: "#0f0", color: "#000", border: "none", borderRadius: "25%", fontSize: "13px", fontWeight: "bold", cursor: "pointer", boxShadow: "0 4px 10px rgba(0, 255, 0, 0.4)", zIndex: 999, transition: "all 0.3s ease" }}
           onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
           onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >Back to Top</button>
@@ -181,7 +166,7 @@ export default function ReceivablesReport() {
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead>
             <tr>
-              <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("refNumber")}>Invoice #{sortArrow("refNumber")}</th>
+              <th style={{ ...styles.th, cursor: "pointer", left: 0, zIndex: 12 }} onClick={() => toggleSort("refNumber")}>Invoice #{sortArrow("refNumber")}</th>
               <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("customerName")}>Customer{sortArrow("customerName")}</th>
               <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("txnDate")}>Date{sortArrow("txnDate")}</th>
               <th style={{ ...styles.th, cursor: "pointer" }} onClick={() => toggleSort("dueDate")}>Due Date{sortArrow("dueDate")}</th>
@@ -198,7 +183,7 @@ export default function ReceivablesReport() {
               const color = r.daysPastDue > 90 ? "#f66" : r.daysPastDue > 60 ? "#f44" : r.daysPastDue > 30 ? "#f90" : r.daysPastDue > 0 ? "#ff0" : "#0f0";
               return (
                 <tr key={r.id} style={{ borderBottom: "1px solid #333" }}>
-                  <td style={{ ...styles.td, color: "#0ff" }}>{r.refNumber || "—"}</td>
+                  <td style={{ ...styles.td, color: "#0ff", position: "sticky", left: 0, background: "#111", zIndex: 4 }}>{r.refNumber || "—"}</td>
                   <td style={styles.td}>{r.customerName}</td>
                   <td style={{ ...styles.td, color: "#888" }}>{fmt(r.txnDate)}</td>
                   <td style={{ ...styles.td, color: "#888" }}>{fmt(r.dueDate)}</td>
