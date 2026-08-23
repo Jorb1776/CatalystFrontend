@@ -37,6 +37,7 @@ export default function CatalogPhotoReview() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [published, setPublished] = useState<Record<string, string>>({});
+  const [previewBust, setPreviewBust] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<Filter>("todo");
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   const [report, setReport] = useState<{ ok: string[]; failed: { part: string; reason: string }[]; ambiguous: string[] } | null>(null);
@@ -79,13 +80,21 @@ export default function CatalogPhotoReview() {
     try {
       // Copies across volumes to the customer site, which is slower than the
       // 10s default allows for a large photo.
-      await axios.post(
+      const res = await axios.post(
         "/api/customer-images/publish-from-partimages",
         { partNumber: part, fileName: file },
         { timeout: 120000 }
       );
       setPublished((p) => ({ ...p, [part]: file }));
-      toast.success(`${part} published to the catalog`);
+      setPreviewBust((b) => ({ ...b, [part]: Date.now() }));
+      const d: any = res?.data;
+      // Surface the server-side timing so a slow publish can be diagnosed
+      // without opening devtools.
+      toast.success(
+        d?.totalMs != null
+          ? `${part} published — ${d.sourceKb}KB in ${d.totalMs}ms (copy ${d.copyMs}ms, ${d.attempts} attempt${d.attempts === 1 ? "" : "s"})`
+          : `${part} published to the catalog`
+      );
     } catch (err: any) {
       const d = err?.response?.data;
       toast.error(d?.error || d?.message || err?.message || "Publish failed");
@@ -309,7 +318,7 @@ Each publishes as {part}.jpg and goes live immediately.`
                     {p.hasCatalog && (
                       <Tile
                         label="On the customer site"
-                        src={`/api/customer-images/preview/${encodeURIComponent(p.partNumber)}?t=${Date.now()}`}
+                        src={`/api/customer-images/preview/${encodeURIComponent(p.partNumber)}${previewBust[p.partNumber] ? `?t=${previewBust[p.partNumber]}` : ""}`}
                         caption={`${p.partNumber}.jpg`}
                         accent="#0af"
                       />
@@ -380,7 +389,8 @@ function Tile({ label, src, caption, accent, suggested, action }: {
         {broken ? (
           <span style={{ color: "#555", fontSize: "0.75rem" }}>preview unavailable</span>
         ) : (
-          <img src={src} alt={caption} onError={() => setBroken(true)}
+          <img src={src} alt={caption} loading="lazy" decoding="async"
+               onError={() => setBroken(true)}
                style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
         )}
       </div>
