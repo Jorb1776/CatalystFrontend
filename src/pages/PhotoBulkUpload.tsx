@@ -24,9 +24,17 @@ type Kind = "catalyst" | "catalog";
 
 // The site renders /images/Parts/{part}.jpg, so only real JPEGs are visible
 // there. Engineering photos are served through the API, which also allows png
-// and webp.
+// and webp. Anything else the browser can decode is converted to JPEG here
+// before upload, so the API never sees a format it doesn't store.
 const CATALOG_EXT = [".jpg", ".jpeg"];
 const CATALYST_EXT = [".jpg", ".jpeg", ".png", ".webp"];
+
+// JPEGs under another name: renamed, not re-encoded.
+const JPEG_ALIASES = [".jfif", ".jpe"];
+
+// Formats converted in the browser. HEIC and TIFF decode only where the browser
+// supports them (Safari); elsewhere the upload reports that the file can't be read.
+const CONVERTIBLE = [".png", ".webp", ".gif", ".bmp", ".avif", ".heic", ".heif", ".tif", ".tiff"];
 
 type Status = "ok" | "warn" | "bad";
 
@@ -38,6 +46,55 @@ interface Row {
   reason: string;
   partNumber?: string;
   existing: boolean;
+  convert: "none" | "rename" | "encode";
+}
+
+// Re-encode any browser-decodable image as a JPEG named {stem}.jpg. Transparent
+// areas become white rather than black.
+async function toJpeg(file: File, stem: string): Promise<File> {
+  let source: CanvasImageSource;
+  let width: number;
+  let height: number;
+  let release = () => {};
+
+  try {
+    const bmp = await createImageBitmap(file);
+    source = bmp;
+    width = bmp.width;
+    height = bmp.height;
+    release = () => bmp.close();
+  } catch {
+    // Fallback for browsers whose createImageBitmap can't take this format.
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      source = img;
+      width = img.naturalWidth;
+      height = img.naturalHeight;
+    } catch {
+      URL.revokeObjectURL(url);
+      throw new Error("This browser can't read this image — open it and re-save as JPG");
+    }
+    release = () => URL.revokeObjectURL(url);
+  }
+
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Could not convert the image");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(source, 0, 0);
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.92));
+    if (!blob) throw new Error("Could not convert the image");
+    return new File([blob], `${stem}.jpg`, { type: "image/jpeg" });
+  } finally {
+    release();
+  }
 }
 
 interface Dest {
@@ -159,22 +216,28 @@ export default function PhotoBulkUpload() {
       const stem = (dot === -1 ? file.name : file.name.slice(0, dot)).trim();
       const ext = dot === -1 ? "" : file.name.slice(dot).toLowerCase();
 
+      const convert: Row["convert"] = allowed.includes(ext)
+        ? "none"
+        : JPEG_ALIASES.includes(ext)
+        ? "rename"
+        : CONVERTIBLE.includes(ext)
+        ? "encode"
+        : "none";
+
       const base: Omit<Row, "status" | "reason"> = {
         file,
         stem,
         ext,
         partNumber: parts?.get(stem.toLowerCase()),
         existing: false,
+        convert,
       };
 
-      if (!allowed.includes(ext)) {
-        const why =
-          k === "catalog" && (ext === ".png" || ext === ".webp")
-            ? `${ext} is not shown by the website — save as .jpg`
-            : `Unsupported file type ${ext || "(none)"}`;
-        return { ...base, status: "bad", reason: why };
+      if (!allowed.includes(ext) && convert === "none") {
+        return { ...base, status: "bad", reason: `Unsupported file type ${ext || "(none)"}` };
       }
       if (!stem) return { ...base, status: "bad", reason: "Filename has no part number" };
+      const conv = convert === "encode" ? ` (converted from ${ext})` : "";
 
       // A second file for the same part would overwrite the first on the catalog
       // side, where the name is forced to {part}.jpg.
@@ -188,14 +251,14 @@ export default function PhotoBulkUpload() {
         return {
           ...base,
           status: "ok",
-          reason: k === "catalog" ? "Will publish as " + base.partNumber + ".jpg" : "Matched",
+          reason: (k === "catalog" ? "Will publish as " + base.partNumber + ".jpg" : "Matched") + conv,
         };
       }
       if (k === "catalog") {
         return {
           ...base,
           status: "warn",
-          reason: "Not in Catalyst — may still be a valid website part",
+          reason: "Not in Catalyst — may still be a valid website part" + conv,
         };
       }
       return { ...base, status: "bad", reason: "No part number matches \"" + stem + "\"" };
@@ -243,13 +306,19 @@ export default function PhotoBulkUpload() {
         const row = queue[cursor++];
         const part = row.partNumber || row.stem;
         try {
+          const file =
+            row.convert === "encode"
+              ? await toJpeg(row.file, row.stem)
+              : row.convert === "rename"
+              ? new File([row.file], `${row.stem}.jpg`, { type: "image/jpeg" })
+              : row.file;
           const fd = new FormData();
           if (kind === "catalog") {
-            fd.append("file", row.file);
+            fd.append("file", file);
             fd.append("partNumber", part);
             await axios.post("/api/customer-images/upload", fd);
           } else {
-            fd.append("files", row.file);
+            fd.append("files", file);
             await axios.post(`/api/partimages/${encodeURIComponent(part)}/upload`, fd);
           }
           out.push({ name: row.file.name, ok: true, reason: "" });
@@ -394,6 +463,9 @@ export default function PhotoBulkUpload() {
               <div style={{ color: "#555", fontSize: "0.75rem", marginTop: 10 }}>
                 {KINDS[openZone].exts.join("   ")}
               </div>
+              <div style={{ color: "#555", fontSize: "0.75rem", marginTop: 4 }}>
+                Other image types (png, webp, gif, bmp, heic…) are converted to .jpg automatically
+              </div>
             </div>
           )}
 
@@ -409,7 +481,7 @@ export default function PhotoBulkUpload() {
         ref={inputRef}
         type="file"
         multiple
-        accept="image/*"
+        accept="image/*,.heic,.heif,.tif,.tiff,.jfif"
         style={{ display: "none" }}
         onChange={(e) => {
           accept(Array.from(e.target.files || []), kind);
